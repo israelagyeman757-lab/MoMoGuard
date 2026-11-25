@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4c271b">
+  <meta name="description" content="MoMoGuard feature-phone prototype preview with simulated responses.">
+  <title>MoMoGuard — Feature phone preview</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="marble-vein marble-vein-one" aria-hidden="true"></div>
+  <div class="marble-vein marble-vein-two" aria-hidden="true"></div>
+
+  <header class="page-header">
+    <div class="brand" aria-label="MoMoGuard">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 36" role="img"><path d="M16 2 29 7v10c0 8.4-5.3 14.1-13 17C8.3 31.1 3 25.4 3 17V7L16 2Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="m10 17 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span>MoMoGuard<span class="brand-dot">.</span></span>
+    </div>
+    <div class="preview-status"><span class="status-dot"></span> Local preview <span class="status-divider">/</span> Simulated responses</div>
+  </header>
+
+  <main class="showcase">
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">A SECURITY LAYER FOR MOBILE MONEY</p>
+      <h1 id="page-title">A moment to think.<br><em>Before money moves.</em></h1>
+      <p class="intro-copy">A familiar phone. A clear warning. A short pause only when a payment needs a second look.</p>
+      <div class="design-notes" aria-label="Design principles">
+        <span>Simple words</span><span>High contrast</span><span>USSD first</span>
+      </div>
+      <details class="demo-guide">
+        <summary>Preview guide <span aria-hidden="true">+</span></summary>
+        <p>Press <strong>OK</strong> for apps, choose <strong>Phone</strong> or <strong>Messages</strong> with the navigation keys, then press <strong>OK</strong>. <strong>Call</strong> opens Phone directly.</p>
+        <p>In Phone, enter <strong>*000#</strong>, then press <strong>OK</strong>. This is a placeholder code, not a real service code.</p>
+        <dl>
+          <div><dt>0240000006 · GH₵100</dt><dd>Payment sent</dd></div>
+          <div><dt>0240000002 · GH₵7,000</dt><dd>Big-amount confirm</dd></div>
+          <div><dt>0240000007 · GH₵300</dt><dd>Pause + voice check</dd></div>
+          <div><dt>0240000005 · GH₵300</dt><dd>Payment stopped</dd></div>
+        </dl>
+        <p><strong>Messages</strong> lists several simulated texts. Use <strong>Up/Down</strong> to choose and <strong>OK</strong> to read; the suspicious one is tagged <strong>POSSIBLE FAKE</strong>. Successful payments add a receipt. <strong>End</strong> always returns to idle.</p>
+      </details>
+    </section>
+
+    <section class="phone-stage" aria-label="Interactive MoMoGuard feature phone">
+      <div class="phone-shadow" aria-hidden="true"></div>
+      <div class="phone" id="phone">
+        <div class="phone-topline">
+          <span class="speaker" aria-hidden="true"></span>
+          <span class="phone-edition">MG–01</span>
+        </div>
+        <div class="phone-wordmark">MoMoGuard <span>security layer</span></div>
+
+        <div class="screen-bezel">
+          <div class="phone-screen" id="phone_screen">
+            <div class="screen-status">
+              <span class="network" aria-label="Network available"><i></i><i></i><i></i><i></i></span>
+              <span id="screen_time">09:41</span>
+              <span class="demo-label">DEMO</span>
+              <span class="battery" aria-label="Battery full"><i></i></span>
+            </div>
+            <div class="screen-content" id="screen_content" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <div class="phone-controls">
+          <div class="action-keys">
+            <button class="key utility-key" id="key_back" data-key="back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 3 12l6 7M4 12h10a6 6 0 0 1 6 6"/></svg><span>Back</span></button>
+            <button class="key utility-key call-key" id="key_call" data-key="call" aria-label="Call or answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 3.8 9 7.5 6.8 10c1.3 2.8 3.4 4.9 6.2 6.2l2.5-2.2 3.7 3.8-.8 3c-.2.8-1 1.3-1.8 1.2C9.4 21.1 2.9 14.6 2 6.4c-.1-.8.4-1.6 1.2-1.8l2-.8Z"/></svg><span>Call</span></button>
+            <button class="key utility-key end-key" id="key_end" data-key="end" aria-label="End or cancel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 15 3.2-3.7c4.7-2 9.9-2 14.6 0L24 15l-4 4-3.8-2.8v-2.4a17 17 0 0 0-8.4 0v2.4L4 19l-1-4Z"/></svg><span>End</span></button>
+            <button class="key utility-key" id="key_clear" data-key="clear" aria-label="Clear one digit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 12 0v14H8L2 12l6-7Zm4 4 5 5m0-5-5 5"/></svg><span>Clear</span></button>
+          </div>
+
+          <div class="navigation" aria-label="Navigation keys">
+            <button class="key nav-key nav-up" id="key_up" data-key="up" aria-label="Up">▲</button>
+            <button class="key nav-key nav-left" id="key_left" data-key="left" aria-label="Left">◀</button>
+            <button class="key ok-key" id="key_ok" data-key="ok" aria-label="OK or select"><span>OK</span></button>
+            <button class="key nav-key nav-right" id="key_right" data-key="right" aria-label="Right">▶</button>
+            <button class="key nav-key nav-down" id="key_down" data-key="down" aria-label="Down">▼</button>
+          </div>
+        </div>
+
+        <div class="keypad" aria-label="Phone keypad">
+          <button class="key number-key" id="key_1" data-key="1"><strong>1</strong><small>&nbsp;</small></button>
+          <button class="key number-key" id="key_2" data-key="2"><strong>2</strong><small>ABC</small></button>
+          <button class="key number-key" id="key_3" data-key="3"><strong>3</strong><small>DEF</small></button>
+          <button class="key number-key" id="key_4" data-key="4"><strong>4</strong><small>GHI</small></button>
+          <button class="key number-key" id="key_5" data-key="5"><strong>5</strong><small>JKL</small></button>
+          <button class="key number-key" id="key_6" data-key="6"><strong>6</strong><small>MNO</small></button>
+          <button class="key number-key" id="key_7" data-key="7"><strong>7</strong><small>PQRS</small></button>
+          <button class="key number-key" id="key_8" data-key="8"><strong>8</strong><small>TUV</small></button>
+          <button class="key number-key" id="key_9" data-key="9"><strong>9</strong><small>WXYZ</small></button>
+          <button class="key number-key" id="key_star" data-key="*"><strong>*</strong><small>&nbsp;</small></button>
+          <button class="key number-key" id="key_0" data-key="0"><strong>0</strong><small>+</small></button>
+          <button class="key number-key" id="key_hash" data-key="#"><strong>#</strong><small>SPACE</small></button>
+        </div>
+        <div class="phone-footer"><span></span><small>SIMULATED PROTOTYPE</small><span></span></div>
+      </div>
+      <p class="keyboard-hint">Keyboard works too: numbers, <kbd>Enter</kbd> for OK, <kbd>Backspace</kbd> to clear, <kbd>Esc</kbd> to end.</p>
+    </section>
+  </main>
+
+  <footer class="page-footer"><span>Built for clarity, not fear.</span><span>No controller connected · No real money movement</span></footer>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

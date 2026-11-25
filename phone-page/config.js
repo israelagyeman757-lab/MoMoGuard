@@ -1,0 +1,7 @@
+export const CONFIG = {
+  MODE: "mock",
+  CONTROLLER_URL: "",
+  SIMULATED_DELAY_MS: 700,
+  INCOMING_CALL_DELAY_MS: 1200,
+  VOICE_AUDIO_MS: 4500,
+};
