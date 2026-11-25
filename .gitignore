@@ -1,0 +1,23 @@
+# keys and secrets
+.env
+*.key
+*.pem
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# local research material (not part of the build)
+Read stuff/
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
+
+# large files
+*.mp4
+*.zip
