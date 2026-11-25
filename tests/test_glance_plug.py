@@ -52,3 +52,16 @@ def test_reset_clears_local_reports():
     glance.report("0240000005", "possible_fake_reversal", reporter_id="s1")
     glance.reset()
     assert glance.local_reports() == []
+
+
+def test_demo_unavailable_is_not_safe_nor_fraud():
+    result = GlancePlug().check("DEMO-004")
+    assert result["risk"] == "unavailable"
+    assert result["reports"] == 0
+    assert "could not be checked" in result["message"]
+
+
+def test_unknown_demo_scenario_is_error():
+    result = GlancePlug().check("DEMO-999")
+    assert result["risk"] == "error"
+    assert result["reports"] == 0

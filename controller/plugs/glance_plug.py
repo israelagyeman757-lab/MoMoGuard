@@ -16,6 +16,8 @@ CANNED_REPUTATION = {
     "DEMO-001": {"reports": 3, "risk": "high"},
     "DEMO-002": {"reports": 1, "risk": "single_source"},
     "DEMO-003": {"reports": 0, "risk": "unreported"},
+    "DEMO-004": {"reports": 0, "risk": "unavailable"},
+    "DEMO-999": {"reports": 0, "risk": "error"},
 }
 
 
@@ -47,6 +49,10 @@ class GlancePlug:
                              "not proof it is unsafe.",
             "unreported": "No reports found for this number. "
                           "That is not proof it is safe.",
+            "unavailable": "This number could not be checked right now. "
+                           "That is not proof it is safe or unsafe.",
+            "error": "This number could not be checked because of an error. "
+                     "That is not proof it is safe or unsafe.",
         }
         return {"number": number, "reports": reports, "risk": risk,
                 "message": messages[risk], "source": self.source}
