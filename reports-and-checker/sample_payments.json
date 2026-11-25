@@ -1,0 +1,71 @@
+[
+  {
+    "id": "P01", "description": "Honest known supplier, small repeat payment",
+    "label": "honest", "amount": 100, "pair_max_safe": 120,
+    "context": { "safe_history": true }
+  },
+  {
+    "id": "P02", "description": "Honest small transfer to a new number, no warning signs",
+    "label": "honest", "amount": 50, "pair_max_safe": 0,
+    "context": { "new_recipient": true }
+  },
+  {
+    "id": "P03", "description": "Trusted friend Kofi, unusually big amount (confirm screen)",
+    "label": "honest", "amount": 7000, "pair_max_safe": 100,
+    "context": { "safe_history": true, "large_balance_share": true }
+  },
+  {
+    "id": "P04", "description": "Scam: strong network trace + coached victim answers",
+    "label": "scam", "amount": 300, "pair_max_safe": 0,
+    "context": { "new_recipient": true, "unusual_amount": true,
+                 "unknown_call_before": true, "long_call_before": true,
+                 "sim_recently_changed": true },
+    "answers": { "who_asked": "called", "purpose": "reverse",
+                 "claimed_official": true, "hurry": true, "knows": false }
+  },
+  {
+    "id": "P05", "description": "Scam: quiet, only a long unknown call (weak trace; lands at Caution with starting weights - tuning target)",
+    "label": "scam", "amount": 300, "pair_max_safe": 0,
+    "context": { "unknown_call_before": true, "long_call_before": true }
+  },
+  {
+    "id": "P06", "description": "Scam with no network trace (documented limit: passes)",
+    "label": "scam", "amount": 50, "pair_max_safe": 0,
+    "context": { "new_recipient": true }
+  },
+  {
+    "id": "P07", "description": "Fake-reversal victim: new number, unusual amount, one report",
+    "label": "scam", "amount": 300, "pair_max_safe": 0,
+    "context": { "new_recipient": true, "unusual_amount": true, "reports": 1 }
+  },
+  {
+    "id": "P08", "description": "Reported number: 3 independent reports + new + unusual",
+    "label": "scam", "amount": 300, "pair_max_safe": 0,
+    "context": { "new_recipient": true, "unusual_amount": true, "reports": 3 }
+  },
+  {
+    "id": "P09", "description": "Mass-calling recipient + SIM change + new recipient (two groups -> High)",
+    "label": "scam", "amount": 200, "pair_max_safe": 0,
+    "context": { "new_recipient": true, "recipient_calls_many": true,
+                 "sim_recently_changed": true }
+  },
+  {
+    "id": "P10", "description": "Coached victim, no network trace (habits + answers, two groups -> Very High)",
+    "label": "scam", "amount": 300, "pair_max_safe": 0,
+    "context": { "new_recipient": true, "unusual_amount": true },
+    "answers": { "who_asked": "called", "purpose": "reverse",
+                 "claimed_official": true, "hurry": true, "knows": false }
+  },
+  {
+    "id": "P11", "description": "Honest: innocent voice answers after a mild pause",
+    "label": "honest", "amount": 300, "pair_max_safe": 0,
+    "context": { "new_recipient": true, "unknown_call_before": true },
+    "answers": { "who_asked": "self", "purpose": "goods",
+                 "claimed_official": false, "hurry": false, "knows": true }
+  },
+  {
+    "id": "P12", "description": "Send-back to someone who paid you yesterday (mild)",
+    "label": "honest", "amount": 60, "pair_max_safe": 60,
+    "context": { "safe_history": true }
+  }
+]
