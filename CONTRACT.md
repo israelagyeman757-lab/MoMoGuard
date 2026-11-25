@@ -64,6 +64,10 @@ Triggered only when the pair has safe history and `amount > 5 × max_safe_amount
 Screen text style: "You usually send about GH₵100 to Kofi. You are sending GH₵7,000 (seven thousand cedis). Continue? 1 Yes 2 No".
 "No" ends the payment and records nothing against anyone.
 
+### Sending money back
+
+A payment back to someone who previously paid the sender does not receive the full new-recipient or unusual-amount risk. If the pair has no safe outgoing history, the incoming payment is within 24 hours, and the amount is 0.5–2 times that payment, a mild signal applies only when another positive signal group is present. A send-back alone never raises the risk.
+
 ## POST /confirm
 
 ```json
@@ -118,7 +122,7 @@ Checks the state of a paused payment. If sender/recipient/amount changed, the pa
 ## GET /check-number?number=0240000009
 
 ```json
-{ "number": "0240000009", "reports": 3, "risk": "high|single_source|unreported|unavailable",
+{ "number": "0240000009", "reports": 3, "risk": "high|single_source|unreported|unavailable|error",
   "message": "This number has been reported by several people. That may be a warning sign, not proof it is unsafe.",
   "source": "simulated" }
 ```
@@ -228,7 +232,7 @@ Restores pretend bank balances/history, clears paused payments, reports, metrics
 | 0240000001 | Aunty | feature-phone customer, balance GH₵8,000 |
 | 0240000002 | Kofi | trusted friend; Aunty usually sends GH₵50–100 |
 | 0240000005 | Stranger | new number, recent SIM change (simulated), long unknown call before payment (simulated) |
-| 0240000006 | New Supplier | normal new recipient, no warning signs |
+| 0240000006 | New Supplier | paid Aunty GH₵200 at 08:00; send-back demo, no outgoing history from Aunty |
 | 0240000007 | Mum | new number, recent SIM change (simulated) — pauses, then voice check |
 | 0240000009 | Reported Number | several independent reports (simulated Glance) |
 

@@ -29,6 +29,8 @@ SEED_HISTORY = [
      "recipient": "0240000002", "amount": 100.0, "balance_before": 1600.0},
     {"id": "t5", "ts": "2026-11-23T16:00:00", "sender": "0240000002",
      "recipient": "0240000001", "amount": 60.0, "balance_before": 400.0},
+    {"id": "t6", "ts": "2026-11-27T08:00:00", "sender": "0240000006",
+     "recipient": "0240000001", "amount": 200.0, "balance_before": 600.0},
 ]
 
 

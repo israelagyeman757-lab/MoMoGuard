@@ -38,6 +38,19 @@ def test_low_payment_goes_through(client):
     assert client.app.state.bank.balance(AUNTY) == before - 50
 
 
+def test_send_back_alone_stays_low(client):
+    r = assess(client, AUNTY, SUPPLIER, 100, ts="2026-11-27T09:00:00").json()
+    assert r["decision"] == "allow"
+    assert r["band"] == "low"
+
+
+def test_send_back_with_call_evidence_is_only_caution(client):
+    r = assess(client, AUNTY, SUPPLIER, 300).json()
+    assert r["decision"] == "caution"
+    assert r["band"] == "caution"
+    assert set(r["reasons"]) == {"send_back_new_recent_similar", "unknown_call_before", "long_call_before"}
+
+
 def test_trusted_big_amount_asks_confirm(client):
     before = client.app.state.bank.balance(AUNTY)
     r = assess(client, AUNTY, KOFI, 7000).json()

@@ -4,6 +4,7 @@ Run: python -m uvicorn controller.app:app --port 8000
 """
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
 
@@ -52,9 +53,24 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
         sends = [t["amount"] for t in history if t["sender"] == sender]
         typical = sum(sends) / len(sends) if sends else 100.0
         new_recipient = not bank.has_safe_history(sender, recipient)
+        payment_time = (datetime.fromisoformat(ts) if ts
+                        else datetime.now(timezone.utc).replace(tzinfo=None))
+        incoming = [t for t in history
+                    if t["sender"] == recipient and t["recipient"] == sender
+                    and datetime.fromisoformat(t["ts"]) <= payment_time]
+        send_back_new_recent_similar = any(
+            new_recipient
+            and 0 <= (payment_time - datetime.fromisoformat(t["ts"])).total_seconds()
+            <= settings["send_back_window_hours"] * 3600
+            and settings["send_back_min_ratio"] <= amount / t["amount"]
+            <= settings["send_back_max_ratio"]
+            for t in incoming
+        )
         balance = bank.balance(sender)
         return {
             "new_recipient": new_recipient,
+            "send_back": bool(incoming),
+            "send_back_new_recent_similar": send_back_new_recent_similar,
             "unusual_amount": new_recipient and amount > settings["unusual_amount_multiplier"] * typical,
             "large_balance_share": balance is not None and amount > settings["large_balance_share_threshold"] * balance,
             "safe_history": not new_recipient,

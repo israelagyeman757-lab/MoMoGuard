@@ -5,6 +5,7 @@ from controller.brain.scoring import (
     needs_confirm,
     scam_labels,
 )
+import pytest
 
 
 def ctx(**flags):
@@ -117,3 +118,22 @@ def test_amount_in_words():
     assert amount_in_words(7000) == "seven thousand cedis"
     assert amount_in_words(7500) == "seven thousand five hundred cedis"
     assert amount_in_words(200) == "two hundred cedis"
+
+
+def test_send_back_alone_is_low_not_full_new_recipient_risk():
+    # Decision #6: sending money back to someone who paid you is mild.
+    # A new pair, recent deposit, similar amount, but NO other signal -> low.
+    result = assess_payment(ctx(new_recipient=True, send_back=True,
+                                send_back_new_recent_similar=True))
+    assert result["band"] == "low"
+    assert result["score"] == pytest.approx(assess_payment(ctx())["score"])
+
+
+def test_send_back_mild_weight_only_with_other_signals():
+    import math
+    result = assess_payment(ctx(new_recipient=True, send_back=True,
+                                send_back_new_recent_similar=True,
+                                unknown_call_before=True))
+    expected = 1 / (1 + math.exp(-(-2.5 + 0.3 + 1.2)))
+    assert result["score"] == pytest.approx(expected)
+    assert result["band"] == "caution"

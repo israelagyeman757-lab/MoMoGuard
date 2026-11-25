@@ -59,9 +59,10 @@ def assess_payment(context: dict, answers: dict | None = None,
             if reason:
                 reasons.append(reason)
 
-    if context.get("new_recipient"):
+    if context.get("new_recipient") and not context.get("send_back"):
         add("A", w["A"]["new_recipient"], "new_recipient")
-    if context.get("unusual_amount") and context.get("new_recipient"):
+    if (context.get("unusual_amount") and context.get("new_recipient")
+            and not context.get("send_back")):
         add("A", w["A"]["unusual_amount"], "unusual_amount")
     if context.get("large_balance_share"):
         add("A", w["A"]["large_balance_share"], "large_balance_share")
@@ -104,6 +105,9 @@ def assess_payment(context: dict, answers: dict | None = None,
                   or (context.get("unknown_call_before") and context.get("long_call_before")))
         if innocent and not strong:
             total -= s["innocent_relief"]
+
+    if context.get("send_back_new_recent_similar") and groups:
+        add("A", w["A"]["send_back_mild"], "send_back_new_recent_similar")
 
     p = sigmoid(total)
     # Two-groups rule: a lone signal group can pause (High) but never reach
