@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from controller.brain.scoring import amount_in_words, assess_payment, load_settings, needs_confirm
 from controller.message_agent.agent import assess_message
@@ -30,6 +31,13 @@ def _cedis(amount: float) -> str:
 
 def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
     app = FastAPI(title="MoMoGuard controller", version="0.2")
+    # Dev only: the phone preview is served from a separate local port.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     settings = load_settings()
     bank = BankPlug()
     data = DataPlug()

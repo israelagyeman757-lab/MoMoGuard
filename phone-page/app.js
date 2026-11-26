@@ -1,7 +1,8 @@
 import { CONFIG } from "./config.js";
 import { PhoneFlow } from "./phoneFlow.js";
+import * as controller from "./services/controllerAdapter.js";
 
-const flow = new PhoneFlow();
+const flow = new PhoneFlow({ mode: CONFIG.MODE });
 const screenContent = document.querySelector("#screen_content");
 const phone = document.querySelector("#phone");
 const timeLabel = document.querySelector("#screen_time");
@@ -94,6 +95,17 @@ function screenTemplate() {
         <div class="screen-source">source: simulated</div>`;
     case "ussd":
       return entryScreen("USSD entry", "Demo code", "Placeholder only. Not a real service code. OK to continue.");
+    case "serverLoading":
+      return `<div class="screen-center"><span class="loading-spinner" aria-hidden="true"></span>
+        <h2 class="screen-heading">Please wait</h2><p class="screen-small">Checking with MoMoGuard…</p></div>`;
+    case "server":
+      return `<h2 class="screen-heading">MoMoGuard</h2>
+        <div class="server-text">${escapeHtml(state.serverText).replace(/\n/g, "<br>")}</div>
+        <div class="entry-display server-entry">${escapeHtml(state.entry)}</div>
+        <div class="screen-actions">Type, then OK &nbsp; End: exit</div>
+        <div class="screen-source">controller · source: simulated</div>`;
+    case "serverError":
+      return centered("!", "Please try again", state.message, "OK: back to idle", "warning");
     case "main":
       return `<h2 class="screen-heading">${escapeHtml(translations.mainTitle)}</h2>
         <ol class="screen-menu">
@@ -253,9 +265,44 @@ function dispatch(key) {
   if (flow.state.locked && key !== "end") return;
   clearTimeout(pendingTimer);
   pendingTimer = null;
+  const previousScreen = flow.state.screen;
   flow.press(key);
+  if (CONFIG.MODE === "controller" && ["end", "back"].includes(key)
+      && ["server", "serverLoading", "serverError"].includes(previousScreen)) {
+    controller.ussd(flow.sessionId, "end", flow.sender);
+  }
   render();
+  if (flow.state.screen === "serverLoading") runServerRequest();
+  if (CONFIG.MODE === "controller" && flow.state.screen === "sms" && previousScreen !== "sms") checkSmsForCurrentMessage();
   scheduleCurrentScreen();
+}
+
+async function runServerRequest() {
+  const key = flow.state.serverPendingKey ?? "";
+  const result = await controller.ussd(flow.sessionId, key, flow.sender);
+  if (flow.state.screen !== "serverLoading") return;
+  if (result.ok) flow.applyServerScreen(result.data);
+  else flow.applyServerError(result.error === "timeout"
+    ? "MoMoGuard took too long to answer. Nothing was sent."
+    : "Could not reach MoMoGuard. Nothing was sent.");
+  render();
+}
+
+async function checkSmsForCurrentMessage() {
+  const message = flow.messages[flow.state.selectedMessage];
+  if (!message?.senderNumber) return;
+  const result = await controller.checkSms({
+    sender: message.senderNumber,
+    recipient: flow.sender,
+    text: message.text,
+    ts: new Date().toISOString().slice(0, 19),
+  });
+  if (!result.ok || flow.state.screen !== "sms") return;
+  if (result.data.recommended_action === "warn" && result.data.warning) {
+    message.warning = result.data.warning;
+    flow.state.messageWarning = result.data.warning;
+    render();
+  }
 }
 
 for (const button of document.querySelectorAll("[data-key]")) {
@@ -275,6 +322,26 @@ fetch("./i18n/en.json")
   .then(response => response.ok ? response.json() : Promise.reject(new Error("Translation unavailable")))
   .then(data => { translations = { ...translations, ...data }; render(); })
   .catch(() => {});
+
+const resetButton = document.querySelector("#reset_demo");
+const resetStatus = document.querySelector("#reset_status");
+if (CONFIG.MODE === "controller") {
+  document.querySelector("#preview_status").innerHTML =
+    '<span class="status-dot"></span> Controller mode <span class="status-divider">/</span> Simulated money';
+  document.querySelector("#footer_note").textContent =
+    `Controller: ${CONFIG.CONTROLLER_URL} · No real money movement`;
+  document.querySelector("#controller_guide").hidden = false;
+  resetButton.hidden = false;
+  resetButton.addEventListener("click", async () => {
+    resetButton.disabled = true;
+    resetStatus.textContent = "Resetting…";
+    const result = await controller.resetDemo();
+    resetButton.disabled = false;
+    resetStatus.textContent = result.ok ? result.data.message : "Reset failed. Controller unreachable.";
+    flow.press("end");
+    render();
+  });
+}
 
 updateTime();
 setInterval(updateTime, 30000);

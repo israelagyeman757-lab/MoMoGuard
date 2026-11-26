@@ -1,11 +1,14 @@
-import { getNumberPreview, getPaymentPreview, INITIAL_MESSAGES, makeTransactionMessage } from "./mockResponses.js";
+import { getNumberPreview, getPaymentPreview, INITIAL_MESSAGES, makeTransactionMessage, makeControllerReceiptMessage } from "./mockResponses.js";
 
-const ENTRY_SCREENS = new Set(["ussd", "recipient", "amount", "reportNumber", "checkNumber"]);
+const ENTRY_SCREENS = new Set(["ussd", "recipient", "amount", "reportNumber", "checkNumber", "server"]);
 const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calendar", "camera", "settings", "tools", "games"];
 const ACTIVE_APPS = new Set(["phone", "messages"]);
 
 export class PhoneFlow {
-  constructor() {
+  constructor({ mode = "mock" } = {}) {
+    this.mode = mode;
+    this.sender = "0240000001";
+    this.sessionId = `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     this.messages = INITIAL_MESSAGES.map(message => ({ ...message }));
     this.reset();
   }
@@ -33,6 +36,9 @@ export class PhoneFlow {
       numberStatus: "",
       bigConfirmed: false,
       loadingKind: "",
+      serverText: "",
+      serverState: "",
+      serverPendingKey: null,
     };
   }
 
@@ -63,7 +69,13 @@ export class PhoneFlow {
     if (screen === "ussd") {
       if (entry === "*000#") {
         this.state.entry = "";
-        this._go("main");
+        if (this.mode === "controller") {
+          this.state.serverPendingKey = "";
+          this.state.loadingKind = "server";
+          this._go("serverLoading");
+        } else {
+          this._go("main");
+        }
       } else {
         this.fail("Please try again. Use the demo code *000#.");
       }
@@ -93,6 +105,11 @@ export class PhoneFlow {
       this.state.entry = "";
       this.state.loadingKind = "number";
       this._replace("loading");
+    } else if (screen === "server") {
+      this.state.serverPendingKey = entry;
+      this.state.entry = "";
+      this.state.loadingKind = "server";
+      this._go("serverLoading");
     }
   }
 
@@ -103,6 +120,10 @@ export class PhoneFlow {
     }
     if (this.state.locked) return;
     if (key === "back") {
+      if (this.state.screen === "server" || this.state.screen === "serverError") {
+        this.reset();
+        return;
+      }
       this._back();
       return;
     }
@@ -196,7 +217,31 @@ export class PhoneFlow {
       }
     } else if (screen === "error") {
       if (key === "ok") this._back();
+    } else if (screen === "serverError") {
+      if (key === "ok") this.reset();
     }
+  }
+
+  applyServerScreen(result) {
+    if (this.state.screen !== "serverLoading") return;
+    this.state.serverPendingKey = null;
+    if (result.done) {
+      this.reset();
+      return;
+    }
+    this.state.serverText = result.text;
+    this.state.serverState = result.state;
+    if (result.state === "result" && /^Sent\b/i.test(result.text)) {
+      this.messages.unshift(makeControllerReceiptMessage(result.text));
+    }
+    this._replace("server");
+  }
+
+  applyServerError(message = "Could not reach MoMoGuard. Nothing was sent.") {
+    if (this.state.screen !== "serverLoading") return;
+    this.state.serverPendingKey = null;
+    this.state.message = message;
+    this._replace("serverError");
   }
 
   finishPayment() {

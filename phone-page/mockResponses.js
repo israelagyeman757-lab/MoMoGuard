@@ -56,6 +56,7 @@ export const INITIAL_MESSAGES = [
   {
     id: "fake-deposit",
     sender: "UNKNOWN NUMBER",
+    senderNumber: "0240000005",
     time: "NOW",
     preview: "I sent you GH₵300. Return GH₵200 now.",
     text: "I sent you GH₵300. Return GH₵200 now.",
@@ -109,6 +110,19 @@ export function makeTransactionMessage(recipient, amount) {
     time: "NOW",
     preview: `Payment of GH₵${value} to ${recipient} was successful.`,
     text: `Payment of GH₵${value} to ${recipient} was successful. This is a simulated receipt.`,
+    tag: "transaction",
+    source: "simulated",
+  };
+}
+
+export function makeControllerReceiptMessage(text) {
+  receiptSequence += 1;
+  return {
+    id: `txn-${receiptSequence}`,
+    sender: "MoMo",
+    time: "NOW",
+    preview: text,
+    text,
     tag: "transaction",
     source: "simulated",
   };

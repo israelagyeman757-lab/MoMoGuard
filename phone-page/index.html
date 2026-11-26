@@ -19,7 +19,7 @@
       </span>
       <span>MoMoGuard<span class="brand-dot">.</span></span>
     </div>
-    <div class="preview-status"><span class="status-dot"></span> Local preview <span class="status-divider">/</span> Simulated responses</div>
+    <div class="preview-status" id="preview_status"><span class="status-dot"></span> Local preview <span class="status-divider">/</span> Simulated responses</div>
   </header>
 
   <main class="showcase">
@@ -37,10 +37,12 @@
         <dl>
           <div><dt>0240000006 · GH₵100</dt><dd>Payment sent</dd></div>
           <div><dt>0240000002 · GH₵7,000</dt><dd>Big-amount confirm</dd></div>
-          <div><dt>0240000007 · GH₵300</dt><dd>Pause + voice check</dd></div>
-          <div><dt>0240000005 · GH₵300</dt><dd>Payment stopped</dd></div>
+          <div><dt>0240000007 · GH₵300</dt><dd>Pause + safety check</dd></div>
+          <div><dt>0240000005 · GH₵300</dt><dd>Pause; scam-style answers cancel it</dd></div>
         </dl>
         <p><strong>Messages</strong> lists several simulated texts. Use <strong>Up/Down</strong> to choose and <strong>OK</strong> to read; the suspicious one is tagged <strong>POSSIBLE FAKE</strong>. Successful payments add a receipt. <strong>End</strong> always returns to idle.</p>
+        <p id="controller_guide" hidden>In controller mode the menus come from the local MoMoGuard controller. Type a value, then press <strong>OK</strong> to send it. If the controller cannot be reached, the phone shows an error and nothing is sent.</p>
+        <p class="demo-reset-row"><button id="reset_demo" type="button" hidden>Reset demo state</button><span id="reset_status" role="status"></span></p>
       </details>
     </section>
 
@@ -102,7 +104,7 @@
     </section>
   </main>
 
-  <footer class="page-footer"><span>Built for clarity, not fear.</span><span>No controller connected · No real money movement</span></footer>
+  <footer class="page-footer"><span>Built for clarity, not fear.</span><span id="footer_note">No controller connected · No real money movement</span></footer>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

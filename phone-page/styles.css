@@ -254,6 +254,15 @@ kbd { padding: 2px 4px; border: 1px solid rgba(106, 56, 36, .2); border-radius: 
 @keyframes callPulse { 50% { box-shadow: 0 0 0 11px rgba(211, 166, 79, .04); } }
 @keyframes audio { 0%, 100% { height: 8px; } 50% { height: 30px; } }
 
+.server-text { margin: 4px 0 6px; font-size: 11.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.server-entry { min-height: 22px; padding: 3px 7px; font-size: 14px; }
+.server-entry::after { height: 12px; }
+.demo-reset-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#reset_demo { padding: 7px 14px; border: 1px solid var(--chestnut); border-radius: 999px; background: transparent; color: var(--chestnut); font: inherit; font-weight: 800; font-size: 11px; letter-spacing: .04em; cursor: pointer; transition: background .15s, color .15s; }
+#reset_demo:hover:not(:disabled) { background: var(--gold-light); }
+#reset_demo:disabled { opacity: .55; cursor: wait; }
+#reset_status { font-size: 11px; color: #69491e; }
+
 @media (max-width: 900px) {
   .showcase { grid-template-columns: 1fr; gap: 28px; padding-top: 35px; }
   .intro { max-width: 600px; margin: 0 auto; padding: 0; text-align: center; }
