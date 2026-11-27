@@ -30,8 +30,21 @@ that means for a plain customer-to-customer transfer. A merchant must be
 onboarded (MTN back office -> Merchants tab -> "Onboard merchant", which
 needs a registered MTN line with no wallet on it yet) and selected when
 issuing/re-issuing API credentials; without that link, requesttopay/transfer
-fail with a clear "no merchant wallet" error. Live-confirmed: once linked,
-both legs succeed for real (not just reachability) against the sandbox.
+fail immediately with a clear "no merchant wallet" error.
+
+IMPORTANT (learned the hard way -- see git history for the correction): both
+calls are **asynchronous**, exactly like the real MTN MoMo Open API. The
+initial POST returns 202 Accepted as soon as the sandbox has *queued* the
+request -- that is not completion. The only way to know whether money
+actually moved is to poll the matching GET .../{referenceId} status endpoint
+until it reaches a terminal state (`SUCCESSFUL` or `FAILED`). `send()` does
+this polling itself and only reports `"ok"` once both legs come back
+`SUCCESSFUL`; a collection request that nobody/nothing approves in time ends
+`FAILED` with reason `EXPIRED`, and a disbursement to an invalid payee (e.g.
+the sandbox explicitly refuses "send to yourself") ends `FAILED` with its
+own reason. Treating the 202 itself as success was a real bug caught by
+cross-checking the sandbox's own wallet-balance and call-log console against
+this plug's claims -- do the same cross-check after any future change here.
 
 Paths are still env-configurable (MTN_MOMO_*_PATH below) in case a different
 team/sandbox build uses different ones -- no code change needed, just set
@@ -51,6 +64,7 @@ from __future__ import annotations
 
 import base64
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -80,6 +94,12 @@ NETWORK_SUBSCRIBER_PATH = os.environ.get(
 )
 
 REQUEST_TIMEOUT_S = float(os.environ.get("MTN_SANDBOX_TIMEOUT_S", "10"))
+
+# Both legs are async (202 Accepted just means "queued") -- poll the status
+# endpoint until SUCCESSFUL/FAILED or this timeout, whichever comes first.
+POLL_INTERVAL_S = float(os.environ.get("MTN_MOMO_POLL_INTERVAL_S", "1"))
+POLL_TIMEOUT_S = float(os.environ.get("MTN_MOMO_POLL_TIMEOUT_S", "15"))
+TERMINAL_STATUSES = {"SUCCESSFUL", "FAILED"}
 
 
 class MtnMomoBankPlug:
@@ -201,14 +221,18 @@ class MtnMomoBankPlug:
         The sandbox's MoMo API (like the real MTN MoMo Open API) has no
         single "transfer between two subscribers" call -- money only moves
         in or out of *this company's merchant wallet*. A customer-to-customer
-        payment is therefore two legs through that wallet:
+        payment is therefore two legs through that wallet, each of which is
+        *asynchronous* (submit, then poll for the real outcome -- see module
+        docstring):
           1. collection requesttopay: debit `sender` into the merchant wallet
           2. disbursement transfer:   credit `recipient` from the merchant wallet
-        If leg 1 fails, nothing is attempted for leg 2 and nothing is ever
-        reported as sent (CONTRACT.md: a failed request is never shown as a
-        successful payment). Both legs require this company's credentials to
-        have a merchant wallet linked in the sandbox back office; without
-        one, leg 1 fails with a clear "no merchant wallet" error.
+        If leg 1 does not reach SUCCESSFUL, leg 2 is never attempted and
+        nothing is ever reported as sent (CONTRACT.md: a failed request is
+        never shown as a successful payment). Both legs require this
+        company's credentials to have a merchant wallet linked in the
+        sandbox back office; without one, leg 1 fails immediately with a
+        clear "no merchant wallet" error rather than going through the
+        submit-then-poll cycle.
         """
         if unique_key in self._used_keys:
             return {"status": "refused", "reason": "duplicate_key"}
@@ -218,8 +242,9 @@ class MtnMomoBankPlug:
         reference_id = unique_key or uuid.uuid4().hex
         amount_str = str(amount)
 
-        collect = self._post_momo(
-            REQUESTTOPAY_PATH,
+        collect = self._submit_and_await(
+            submit_path=REQUESTTOPAY_PATH,
+            status_path=REQUESTTOPAY_STATUS_PATH,
             reference_id=f"{reference_id}-in",
             target_environment=sender,
             body={
@@ -231,11 +256,12 @@ class MtnMomoBankPlug:
                 "payeeNote": "MoMoGuard transfer",
             },
         )
-        if collect["status"] != "ok":
+        if collect["status"] != "SUCCESSFUL":
             return {"status": "refused", "reason": f"collection_{collect['reason']}"}
 
-        disburse = self._post_momo(
-            TRANSFER_PATH,
+        disburse = self._submit_and_await(
+            submit_path=TRANSFER_PATH,
+            status_path=TRANSFER_STATUS_PATH,
             reference_id=f"{reference_id}-out",
             target_environment=recipient,
             body={
@@ -247,7 +273,7 @@ class MtnMomoBankPlug:
                 "payeeNote": "MoMoGuard transfer",
             },
         )
-        if disburse["status"] != "ok":
+        if disburse["status"] != "SUCCESSFUL":
             # Collected from sender but couldn't pay recipient: never report
             # success. A real integration would reverse/refund here; the
             # sandbox has no documented refund call yet.
@@ -265,10 +291,17 @@ class MtnMomoBankPlug:
         self._history.append(tx)
         return {"status": "ok", "transaction": tx, "source": self.source}
 
-    def _post_momo(self, path: str, reference_id: str, target_environment: str, body: dict) -> dict:
+    def _submit_and_await(
+        self, submit_path: str, status_path: str, reference_id: str,
+        target_environment: str, body: dict,
+    ) -> dict:
+        """POST one MoMo leg, then poll its status until SUCCESSFUL/FAILED or
+        POLL_TIMEOUT_S elapses. Returns {"status": "SUCCESSFUL"|"FAILED"|
+        "SUBMIT_ERROR"|"TIMEOUT", "reason": "..."}. Never infers success from
+        the submit response alone -- a 202 only means "queued"."""
         try:
             resp = self._client.post(
-                self._momo_url(path),
+                self._momo_url(submit_path),
                 json=body,
                 headers={
                     **self._headers(),
@@ -277,16 +310,24 @@ class MtnMomoBankPlug:
                 },
             )
         except httpx.HTTPError as exc:
-            return {"status": "error", "reason": str(exc)}
+            return {"status": "SUBMIT_ERROR", "reason": str(exc)}
         if resp.status_code not in (200, 201, 202):
-            return {"status": "error", "reason": f"http_{resp.status_code}"}
-        return {"status": "ok"}
+            reason = resp.text[:200] if resp.content else f"http_{resp.status_code}"
+            return {"status": "SUBMIT_ERROR", "reason": reason}
 
-    def transfer_status(self, reference_id: str) -> dict | None:
-        """Look up a previously submitted transfer by its reference id."""
+        deadline = time.monotonic() + POLL_TIMEOUT_S
+        last: dict | None = None
+        while time.monotonic() < deadline:
+            last = self._fetch_status(status_path, reference_id)
+            if last and last.get("status") in TERMINAL_STATUSES:
+                return {"status": last["status"], "reason": last.get("reason", "")}
+            time.sleep(POLL_INTERVAL_S)
+        return {"status": "TIMEOUT", "reason": (last or {}).get("status", "no_terminal_status_in_time")}
+
+    def _fetch_status(self, status_path: str, reference_id: str) -> dict | None:
         try:
             resp = self._client.get(
-                self._momo_url(TRANSFER_STATUS_PATH, reference_id=reference_id),
+                self._momo_url(status_path, reference_id=reference_id),
                 headers=self._headers(),
             )
         except httpx.HTTPError:
@@ -294,6 +335,41 @@ class MtnMomoBankPlug:
         if resp.status_code != 200:
             return None
         return resp.json()
+
+    def request_collection(self, payer_msisdn: str, amount: float, reference_id: str | None = None) -> dict:
+        """Submit a standalone collection request and wait for its real
+        terminal status. Does not touch local send()/history bookkeeping --
+        for diagnostics (see smoke_mtn_sandbox.py) and support tooling, not
+        the controller's payment flow (use send() for that).
+
+        Returns {"status": "SUCCESSFUL"|"FAILED"|"SUBMIT_ERROR"|"TIMEOUT",
+        "reason": "..."}. A collection request normally needs the payer to
+        approve it (e.g. on their phone) before it can go SUCCESSFUL; see
+        the module docstring.
+        """
+        reference_id = reference_id or uuid.uuid4().hex
+        return self._submit_and_await(
+            submit_path=REQUESTTOPAY_PATH,
+            status_path=REQUESTTOPAY_STATUS_PATH,
+            reference_id=reference_id,
+            target_environment=payer_msisdn,
+            body={
+                "amount": str(amount),
+                "currency": "GHS",
+                "externalId": reference_id,
+                "payer": {"partyIdType": "MSISDN", "partyId": payer_msisdn},
+                "payerMessage": "MoMoGuard collection check",
+                "payeeNote": "MoMoGuard collection check",
+            },
+        )
+
+    def requesttopay_status(self, reference_id: str) -> dict | None:
+        """Look up a previously submitted collection request by reference id."""
+        return self._fetch_status(REQUESTTOPAY_STATUS_PATH, reference_id)
+
+    def transfer_status(self, reference_id: str) -> dict | None:
+        """Look up a previously submitted disbursement transfer by reference id."""
+        return self._fetch_status(TRANSFER_STATUS_PATH, reference_id)
 
     def ping(self) -> dict:
         """Lightweight connectivity check: can we reach the sandbox and auth?
