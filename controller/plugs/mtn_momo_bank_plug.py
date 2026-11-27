@@ -46,6 +46,21 @@ own reason. Treating the 202 itself as success was a real bug caught by
 cross-checking the sandbox's own wallet-balance and call-log console against
 this plug's claims -- do the same cross-check after any future change here.
 
+A `requesttopay` only reaches SUCCESSFUL if the payer approves it on their
+phone within the sandbox's 5-minute window: dial `*170#` -> "4 Allow Cash
+Out" -> the pending request -> "1 Approve" -> wallet PIN. There are no
+documented auto-approving test numbers. In an automated test you need a
+payer whose PIN you actually know -- create one with
+`POST {base}/s/hub {"action":"test_customer","network":"mtn"}` (team-key
+auth, returns a fresh MSISDN + PIN + GHS 500 wallet) -- then drive that same
+USSD flow via `POST {base}/ussd` (also team-key auth) while `send()` is
+polling. `reports-and-checker/live_round_trip_demo.py` does exactly this and
+independently re-verifies the result (status, financialTransactionId, and
+the merchant wallet balance actually changing) rather than trusting send()'s
+own return value -- this is the pattern that caught the original bug, run it
+again after any change here. `transfer` (disbursement) has no such approval
+step; it only needs the merchant wallet to hold enough funds (collect first).
+
 Paths are still env-configurable (MTN_MOMO_*_PATH below) in case a different
 team/sandbox build uses different ones -- no code change needed, just set
 the env var.
