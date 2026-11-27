@@ -25,11 +25,11 @@ def _plug(handler) -> MtnMomoBankPlug:
 
 
 def test_send_uses_basic_auth_and_returns_ok():
-    seen = {}
+    seen = {"urls": [], "auth": []}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen["auth"] = request.headers.get("authorization")
-        seen["url"] = str(request.url)
+        seen["urls"].append(str(request.url))
+        seen["auth"].append(request.headers.get("authorization"))
         return httpx.Response(202, json={"status": "accepted"})
 
     bank = _plug(handler)
@@ -37,8 +37,24 @@ def test_send_uses_basic_auth_and_returns_ok():
 
     assert result["status"] == "ok"
     assert result["source"] == "mtn_sandbox"
-    assert seen["auth"].startswith("Basic ")
-    assert "/momo/mtn/v1_0/transfer" in seen["url"]
+    assert all(a.startswith("Basic ") for a in seen["auth"])
+    assert any("/momo/mtn/collection/v1_0/requesttopay" in u for u in seen["urls"])
+    assert any("/momo/mtn/disbursement/v1_0/transfer" in u for u in seen["urls"])
+
+
+def test_send_stops_before_disbursement_when_collection_fails():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(403, json={"error": "This partner has no merchant wallet."})
+
+    bank = _plug(handler)
+    result = bank.send(AUNTY, KOFI, 50, unique_key="k-no-wallet")
+
+    assert result["status"] == "refused"
+    assert "collection" in result["reason"]
+    assert len(calls) == 1  # never attempted the disbursement leg
 
 
 def test_duplicate_key_is_refused_without_a_second_call():
@@ -50,10 +66,11 @@ def test_duplicate_key_is_refused_without_a_second_call():
 
     bank = _plug(handler)
     bank.send(AUNTY, KOFI, 50, unique_key="k1")
+    calls_after_first_send = calls["n"]
     again = bank.send(AUNTY, KOFI, 50, unique_key="k1")
 
     assert again["status"] == "refused"
-    assert calls["n"] == 1
+    assert calls["n"] == calls_after_first_send  # second call made no new requests
 
 
 def test_failed_sandbox_response_is_refused_not_ok():

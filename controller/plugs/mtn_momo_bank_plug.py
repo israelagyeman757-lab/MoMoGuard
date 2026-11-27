@@ -6,18 +6,32 @@ money world (NOT the real MTN developer portal, NOT real money):
     docs: https://hackathon.innofemme.org/t/team-08/docs
     base: https://hackathon.innofemme.org/api/w/team-08
 
-Confirmed from the sandbox docs:
-  - MoMo API root:        {base}/momo/mtn   (also /momo/telecel, /momo/at)
-  - Network API:          {base}/network/mtn/v1/subscribers/<msisdn>
-  - Network token:        {base}/network/mtn/token
-  - Auth: HTTP Basic (CLIENT_ID:API_KEY), or a bearer token fetched from a
-    token endpoint. Credentials come from the MTN back office
-    (/t/team-08/telco/mtn -> "Give a company API access" -> "Issue credentials").
+Confirmed by hitting the live sandbox with issued credentials (HTTP Basic,
+CLIENT_ID:API_KEY -- no separate token step was needed; it mirrors the real
+MTN MoMo Open API shape):
+  - Network API:    GET  {base}/network/mtn/v1/subscribers/<msisdn>
+                     -> real subscriber lookup (404 "is not a MTN subscriber"
+                        for an unseeded number -- a genuine business
+                        response, not an auth/path error)
+  - Collections:    GET  {base}/momo/mtn/collection/v1_0/account/balance
+                     POST {base}/momo/mtn/collection/v1_0/requesttopay
+                     (body needs amount + payer.partyId) -- debits a
+                     subscriber (the "payer") into this company's merchant
+                     wallet
+  - Disbursements:  POST {base}/momo/mtn/disbursement/v1_0/transfer
+                     (body needs amount + payee.partyId) -- pays a
+                     subscriber (the "payee") out of the merchant wallet
+  - Credentials come from the MTN back office (/t/team-08/telco/mtn ->
+    "Give a company API access" -> "Issue credentials").
 
-The exact MoMo money-movement paths (transfer / request-to-pay / balance) can
-vary by sandbox build, so they are env-configurable (MTN_MOMO_*_PATH below)
-with MTN-MoMo-Open-API-style defaults. If the live docs show different paths,
-set the env vars -- no code change needed.
+NOTE: both money-movement calls go through this company's *merchant wallet*
+(a sandbox concept, not a free-text field) -- see `send()` docstring for what
+that means for a plain customer-to-customer transfer, and for the current
+known limitation when no merchant is linked yet.
+
+Paths are still env-configurable (MTN_MOMO_*_PATH below) in case a different
+team/sandbox build uses different ones -- no code change needed, just set
+the env var.
 
 Interface contract: same as BankPlug (account/balance/history/send/
 pair_max_safe/has_safe_history/distinct_senders/reset), so the controller
@@ -32,7 +46,6 @@ balance and subscriber identity are always read live from the sandbox.
 from __future__ import annotations
 
 import base64
-import copy
 import os
 import uuid
 from datetime import datetime, timezone
@@ -45,19 +58,22 @@ SANDBOX_BASE_URL = os.environ.get(
 MOMO_CLIENT_ID = os.environ.get("MTN_MOMO_CLIENT_ID", "")
 MOMO_API_KEY = os.environ.get("MTN_MOMO_API_KEY", "")
 
-# Money-movement paths, relative to {base}/momo/mtn. Override if the live
-# sandbox docs differ from these MTN-MoMo-Open-API-style defaults.
-TRANSFER_PATH = os.environ.get("MTN_MOMO_TRANSFER_PATH", "/v1_0/transfer")
-TRANSFER_STATUS_PATH = os.environ.get(
-    "MTN_MOMO_TRANSFER_STATUS_PATH", "/v1_0/transfer/{reference_id}"
+# Money-movement paths, relative to {base}/momo/mtn. Confirmed live against
+# the team-08 sandbox (see module docstring); override if another sandbox
+# build uses different ones.
+REQUESTTOPAY_PATH = os.environ.get("MTN_MOMO_REQUESTTOPAY_PATH", "/collection/v1_0/requesttopay")
+REQUESTTOPAY_STATUS_PATH = os.environ.get(
+    "MTN_MOMO_REQUESTTOPAY_STATUS_PATH", "/collection/v1_0/requesttopay/{reference_id}"
 )
-BALANCE_PATH = os.environ.get("MTN_MOMO_BALANCE_PATH", "/v1_0/account/balance")
-TOKEN_PATH = os.environ.get("MTN_MOMO_TOKEN_PATH", "/token")
+TRANSFER_PATH = os.environ.get("MTN_MOMO_TRANSFER_PATH", "/disbursement/v1_0/transfer")
+TRANSFER_STATUS_PATH = os.environ.get(
+    "MTN_MOMO_TRANSFER_STATUS_PATH", "/disbursement/v1_0/transfer/{reference_id}"
+)
+BALANCE_PATH = os.environ.get("MTN_MOMO_BALANCE_PATH", "/collection/v1_0/account/balance")
 
 NETWORK_SUBSCRIBER_PATH = os.environ.get(
     "MTN_NETWORK_SUBSCRIBER_PATH", "/network/mtn/v1/subscribers/{msisdn}"
 )
-NETWORK_TOKEN_PATH = os.environ.get("MTN_NETWORK_TOKEN_PATH", "/network/mtn/token")
 
 REQUEST_TIMEOUT_S = float(os.environ.get("MTN_SANDBOX_TIMEOUT_S", "10"))
 
@@ -85,7 +101,6 @@ class MtnMomoBankPlug:
                 "(see .env.example)."
             )
         self._client = client or httpx.Client(timeout=REQUEST_TIMEOUT_S)
-        self._bearer_token: str | None = None
         self.reset()
 
     def reset(self) -> None:
@@ -177,36 +192,62 @@ class MtnMomoBankPlug:
     # -- money movement ---------------------------------------------------
 
     def send(self, sender: str, recipient: str, amount: float, unique_key: str) -> dict:
+        """Move money sender -> recipient via the sandbox's real MoMo API.
+
+        The sandbox's MoMo API (like the real MTN MoMo Open API) has no
+        single "transfer between two subscribers" call -- money only moves
+        in or out of *this company's merchant wallet*. A customer-to-customer
+        payment is therefore two legs through that wallet:
+          1. collection requesttopay: debit `sender` into the merchant wallet
+          2. disbursement transfer:   credit `recipient` from the merchant wallet
+        If leg 1 fails, nothing is attempted for leg 2 and nothing is ever
+        reported as sent (CONTRACT.md: a failed request is never shown as a
+        successful payment). Both legs require this company's credentials to
+        have a merchant wallet linked in the sandbox back office; without
+        one, leg 1 fails with a clear "no merchant wallet" error.
+        """
         if unique_key in self._used_keys:
             return {"status": "refused", "reason": "duplicate_key"}
         if amount <= 0:
             return {"status": "refused", "reason": "invalid_amount"}
 
         reference_id = unique_key or uuid.uuid4().hex
-        body = {
-            "amount": str(amount),
-            "currency": "GHS",
-            "externalId": reference_id,
-            "payer": {"partyIdType": "MSISDN", "partyId": sender},
-            "payee": {"partyIdType": "MSISDN", "partyId": recipient},
-            "payerMessage": "MoMoGuard transfer",
-            "payeeNote": "MoMoGuard transfer",
-        }
-        try:
-            resp = self._client.post(
-                self._momo_url(TRANSFER_PATH),
-                json=body,
-                headers={
-                    **self._headers(),
-                    "X-Reference-Id": reference_id,
-                    "X-Target-Environment": sender,
-                },
-            )
-        except httpx.HTTPError as exc:
-            return {"status": "error", "reason": str(exc)}
+        amount_str = str(amount)
 
-        if resp.status_code not in (200, 201, 202):
-            return {"status": "refused", "reason": f"sandbox_http_{resp.status_code}"}
+        collect = self._post_momo(
+            REQUESTTOPAY_PATH,
+            reference_id=f"{reference_id}-in",
+            target_environment=sender,
+            body={
+                "amount": amount_str,
+                "currency": "GHS",
+                "externalId": reference_id,
+                "payer": {"partyIdType": "MSISDN", "partyId": sender},
+                "payerMessage": "MoMoGuard transfer",
+                "payeeNote": "MoMoGuard transfer",
+            },
+        )
+        if collect["status"] != "ok":
+            return {"status": "refused", "reason": f"collection_{collect['reason']}"}
+
+        disburse = self._post_momo(
+            TRANSFER_PATH,
+            reference_id=f"{reference_id}-out",
+            target_environment=recipient,
+            body={
+                "amount": amount_str,
+                "currency": "GHS",
+                "externalId": reference_id,
+                "payee": {"partyIdType": "MSISDN", "partyId": recipient},
+                "payerMessage": "MoMoGuard transfer",
+                "payeeNote": "MoMoGuard transfer",
+            },
+        )
+        if disburse["status"] != "ok":
+            # Collected from sender but couldn't pay recipient: never report
+            # success. A real integration would reverse/refund here; the
+            # sandbox has no documented refund call yet.
+            return {"status": "refused", "reason": f"disbursement_{disburse['reason']}"}
 
         self._used_keys.add(unique_key)
         tx = {
@@ -219,6 +260,23 @@ class MtnMomoBankPlug:
         }
         self._history.append(tx)
         return {"status": "ok", "transaction": tx, "source": self.source}
+
+    def _post_momo(self, path: str, reference_id: str, target_environment: str, body: dict) -> dict:
+        try:
+            resp = self._client.post(
+                self._momo_url(path),
+                json=body,
+                headers={
+                    **self._headers(),
+                    "X-Reference-Id": reference_id,
+                    "X-Target-Environment": target_environment,
+                },
+            )
+        except httpx.HTTPError as exc:
+            return {"status": "error", "reason": str(exc)}
+        if resp.status_code not in (200, 201, 202):
+            return {"status": "error", "reason": f"http_{resp.status_code}"}
+        return {"status": "ok"}
 
     def transfer_status(self, reference_id: str) -> dict | None:
         """Look up a previously submitted transfer by its reference id."""
