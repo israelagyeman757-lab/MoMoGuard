@@ -24,6 +24,22 @@ Then open http://127.0.0.1:8000/docs for the interactive API.
 python -m pytest tests/ -v
 ```
 
+## Use the real MTN MoMo sandbox instead of the pretend bank
+
+By default the controller uses the simulated in-memory bank. To talk to the
+InnoFemme hackathon's real MTN MoMo sandbox (https://hackathon.innofemme.org/t/team-08)
+instead:
+
+1. In the sandbox's MTN back office (`/t/team-08/telco/mtn`), issue API
+   credentials via "Give a company API access".
+2. `cp .env.example .env` and fill in `MTN_MOMO_CLIENT_ID`, `MTN_MOMO_API_KEY`,
+   and set `BANK_PLUG_MODE=mtn_sandbox`. `.env` is gitignored — never commit it.
+3. `python reports-and-checker/smoke_mtn_sandbox.py` to confirm connectivity.
+4. Run the controller as usual; it now sends real sandbox transfers through
+   `controller/plugs/mtn_momo_bank_plug.py` while keeping the exact same plug
+   interface (`account`/`balance`/`history`/`send`/`pair_max_safe`/...), so
+   nothing else in the controller changes.
+
 ## Sanity-check the brain
 
 ```bash
@@ -40,6 +56,7 @@ controller/            FastAPI controller (all logic lives here)
   metrics.py           scoreboard metrics + audit log
   brain/               risk scoring (settings.json holds all tunable numbers)
   plugs/               BankPlug (pretend bank), DataPlug/GlancePlug/NetworkPlug stubs
+                       MtnMomoBankPlug (real MTN MoMo hackathon sandbox, opt-in)
   message_agent/       SMS check: TF-IDF + Logistic Regression, warn-only
 reports-and-checker/   score checker + sample payments
 tests/                 pytest suite
