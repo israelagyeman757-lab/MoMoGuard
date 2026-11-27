@@ -18,6 +18,15 @@ python -m uvicorn controller.app:app --port 8000   # 3. run the controller
 
 Then open http://127.0.0.1:8000/docs for the interactive API.
 
+To try the feature-phone preview and the demo-control console together,
+serve the repo root as static files (e.g. `python3 -m http.server 5500`)
+and open:
+
+- `http://127.0.0.1:5500/phone-page/index.html` — the feature phone itself.
+- `http://127.0.0.1:5500/demo-control/index.html` — a separate operator
+  console that feeds simulated SMS/calls into the open phone tab (see
+  [demo-control/README.md](demo-control/README.md)).
+
 ## Run the tests
 
 ```bash
@@ -43,6 +52,8 @@ controller/            FastAPI controller (all logic lives here)
   message_agent/       SMS check: TF-IDF + Logistic Regression, warn-only
 reports-and-checker/   score checker + sample payments
 tests/                 pytest suite
+phone-page/            feature-phone preview (static, controller-mode by default)
+demo-control/          separate operator console that feeds scenarios into phone-page
 ```
 
 ## Demo timing note
