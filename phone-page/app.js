@@ -1,6 +1,7 @@
 import { CONFIG } from "./config.js";
 import { PhoneFlow } from "./phoneFlow.js";
 import * as controller from "./services/controllerAdapter.js";
+import { createDemoBridge } from "./services/demoBridge.js";
 
 const flow = new PhoneFlow({ mode: CONFIG.MODE });
 const screenContent = document.querySelector("#screen_content");
@@ -145,6 +146,18 @@ function screenTemplate() {
         <strong>MoMoGuard safety call</strong><small>SIMULATED VOICE CHECK</small>
         <div class="call-answer-hint">Call: answer<br>End: cancel</div>
       </div>`;
+    case "demoCall": {
+      const contact = state.incomingCallContact || {};
+      const trustLabel = contact.trust === "trusted" ? "Saved contact \u00b7 trusted" : "Not in contacts \u00b7 unverified";
+      return `<div class="incoming-call demo-incoming-call">
+        <span class="call-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3 9 7l-2 3c1 3 3 5 6 6l3-2 4 4-1 3c-1 1-2 1-3 1C9 21 3 15 2 8c0-1 0-2 1-3l2-2Z"/></svg></span>
+        <strong>${escapeHtml(contact.name || "Unknown caller")}</strong>
+        <small>${escapeHtml(contact.number || "")}</small>
+        <small>${escapeHtml(trustLabel)}</small>
+        <span class="msg-tag demo-tag">DEMO-CONTROL \u00b7 SIMULATED CALL</span>
+        <div class="call-answer-hint">Call: answer<br>End: decline</div>
+      </div>`;
+    }
     case "voiceAudio":
       return `<div class="screen-center"><h2 class="screen-heading">Audio playing</h2>
         <div class="audio-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -272,7 +285,10 @@ function dispatch(key) {
     controller.ussd(flow.sessionId, "end", flow.sender);
   }
   render();
-  if (flow.state.screen === "serverLoading") runServerRequest();
+  if (flow.state.screen === "serverLoading") {
+    if (flow.state.loadingKind === "autoCall") runSimulatedCallFlow();
+    else runServerRequest();
+  }
   if (CONFIG.MODE === "controller" && flow.state.screen === "sms" && previousScreen !== "sms") checkSmsForCurrentMessage();
   scheduleCurrentScreen();
 }
@@ -288,6 +304,33 @@ async function runServerRequest() {
   render();
 }
 
+async function runSimulatedCallFlow() {
+  const contact = flow.state.autoCallContact;
+  if (!contact) return;
+  // Drives the SAME /ussd session a real key press would: start the menu,
+  // choose Send Money, type the recipient, then the amount. Each step is a
+  // real controller round trip; only the final screen (the controller's own
+  // decision) is shown, exactly like answering a call and being talked
+  // through a payment would feel on a real phone.
+  const steps = ["", "1", contact.number, String(contact.amount)];
+  let result = null;
+  for (const key of steps) {
+    result = await controller.ussd(flow.sessionId, key, flow.sender);
+    if (flow.state.screen !== "serverLoading" || flow.state.loadingKind !== "autoCall") return;
+    if (!result.ok) break;
+  }
+  flow.state.autoCallContact = null;
+  if (!result || !result.ok) {
+    flow.applyServerError(result?.error === "timeout"
+      ? "MoMoGuard took too long to answer. Nothing was sent."
+      : "Could not reach MoMoGuard. Nothing was sent.");
+  } else {
+    flow.applyServerScreen(result.data);
+  }
+  render();
+  scheduleCurrentScreen();
+}
+
 async function checkSmsForCurrentMessage() {
   const message = flow.messages[flow.state.selectedMessage];
   if (!message?.senderNumber) return;
@@ -301,6 +344,8 @@ async function checkSmsForCurrentMessage() {
   if (result.data.recommended_action === "warn" && result.data.warning) {
     message.warning = result.data.warning;
     flow.state.messageWarning = result.data.warning;
+    if (!message.tag) message.tag = "possible_fake";
+    flow.state.messageTag = flow.state.messageTag || message.tag;
     render();
   }
 }
@@ -342,6 +387,50 @@ if (CONFIG.MODE === "controller") {
     render();
   });
 }
+
+// --- Demo-control bridge --------------------------------------------
+// Listens for scenarios triggered from the separate demo-control page
+// (same browser, same origin, different tab). See services/demoBridge.js
+// for the message contract. Every event here still goes through the real
+// phone flow and the real controller endpoints — nothing is faked locally.
+const demoToast = document.querySelector("#demo_toast");
+let toastTimer = null;
+
+function showToast(text) {
+  if (!demoToast) return;
+  demoToast.textContent = text;
+  demoToast.classList.add("is-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => demoToast.classList.remove("is-visible"), 4200);
+}
+
+const demoBridge = createDemoBridge();
+
+demoBridge.onMessage(event => {
+  if (!event || typeof event !== "object") return;
+  if (event.type === "incoming-sms") {
+    const message = flow.receiveSimulatedSms(event);
+    render();
+    showToast(`New message from ${message.sender} (simulated)`);
+    demoBridge.postMessage({ type: "ack", requestId: event.requestId, status: "delivered" });
+    return;
+  }
+  if (event.type === "incoming-call") {
+    if (CONFIG.MODE !== "controller") {
+      showToast("Simulated calls need controller mode. See phone-page/config.js.");
+      demoBridge.postMessage({ type: "ack", requestId: event.requestId, status: "rejected", reason: "mock_mode" });
+      return;
+    }
+    const accepted = flow.receiveSimulatedCall(event);
+    if (!accepted) {
+      showToast("Phone is busy. Press End on the phone, then try again.");
+      demoBridge.postMessage({ type: "ack", requestId: event.requestId, status: "busy" });
+      return;
+    }
+    render();
+    demoBridge.postMessage({ type: "ack", requestId: event.requestId, status: "ringing" });
+  }
+});
 
 updateTime();
 setInterval(updateTime, 30000);

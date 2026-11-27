@@ -11,6 +11,7 @@
 <body>
   <div class="marble-vein marble-vein-one" aria-hidden="true"></div>
   <div class="marble-vein marble-vein-two" aria-hidden="true"></div>
+  <div id="demo_toast" class="demo-toast" role="status" aria-live="polite"></div>
 
   <header class="page-header">
     <div class="brand" aria-label="MoMoGuard">
@@ -43,6 +44,7 @@
         <p><strong>Messages</strong> lists several simulated texts. Use <strong>Up/Down</strong> to choose and <strong>OK</strong> to read; the suspicious one is tagged <strong>POSSIBLE FAKE</strong>. Successful payments add a receipt. <strong>End</strong> always returns to idle.</p>
         <p id="controller_guide" hidden>In controller mode the menus come from the local MoMoGuard controller. Type a value, then press <strong>OK</strong> to send it. If the controller cannot be reached, the phone shows an error and nothing is sent.</p>
         <p class="demo-reset-row"><button id="reset_demo" type="button" hidden>Reset demo state</button><span id="reset_status" role="status"></span></p>
+        <p><a href="../demo-control/index.html" target="_blank" rel="noopener">Open the demo-control console ↗</a> — trigger simulated SMS and calls into this page from another tab.</p>
       </details>
     </section>
 

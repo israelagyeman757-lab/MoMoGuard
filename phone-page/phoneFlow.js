@@ -39,6 +39,8 @@ export class PhoneFlow {
       serverText: "",
       serverState: "",
       serverPendingKey: null,
+      incomingCallContact: null,
+      autoCallContact: null,
     };
   }
 
@@ -62,6 +64,7 @@ export class PhoneFlow {
     this.state.entry = "";
     this.state.locked = false;
     this.state.notice = "";
+    this.state.incomingCallContact = null;
   }
 
   _submitEntry() {
@@ -148,6 +151,8 @@ export class PhoneFlow {
     if (screen === "idle") {
       if (key === "call") this._go("ussd");
       if (key === "ok") this._go("apps");
+    } else if (screen === "demoCall") {
+      if (key === "call" || key === "ok") this.answerSimulatedCall();
     } else if (screen === "apps") {
       const index = APP_ORDER.indexOf(this.state.selectedApp);
       const moves = { left: -1, right: 1, up: -3, down: 3 };
@@ -264,6 +269,53 @@ export class PhoneFlow {
     this.state.numberStatus = result.numberStatus;
     this.state.message = result.message;
     this._replace("numberResult");
+  }
+
+  // --- Demo-control bridge -------------------------------------------
+  // These are triggered remotely from the separate demo-control page
+  // (see services/demoBridge.js), never by a key press. They feed the
+  // SAME inbox and the SAME controller session a real incoming SMS or
+  // call would use — nothing here is drawn or scored locally.
+
+  /** A simulated SMS just "arrived". Always accepted, like a real text. */
+  receiveSimulatedSms({ sender = "UNKNOWN NUMBER", senderNumber = "", text = "", trust = "unknown" } = {}) {
+    // senderNumber is what gets sent to the real /check-sms call; a demo
+    // payload normally only supplies `sender` (a number or label), so fall
+    // back to it rather than silently skipping the live check.
+    const message = {
+      id: `demo-sms-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      sender,
+      senderNumber: senderNumber || sender,
+      time: "NOW",
+      preview: text,
+      text,
+      tag: "",
+      source: "simulated",
+      trust,
+    };
+    this.messages.unshift(message);
+    return message;
+  }
+
+  /**
+   * A simulated call is ringing. Like a real phone, this only rings when
+   * the phone is idle; returns false (busy) otherwise so the caller can
+   * tell the operator to clear the screen first.
+   */
+  receiveSimulatedCall({ name = "Unknown caller", number = "", trust = "unknown", note = "", amount = 100 } = {}) {
+    if (this.state.screen !== "idle") return false;
+    this.state.incomingCallContact = { name, number, trust, note, amount };
+    this._go("demoCall");
+    return true;
+  }
+
+  /** Operator answered the simulated call: hand off to the real controller. */
+  answerSimulatedCall() {
+    if (this.state.screen !== "demoCall" || !this.state.incomingCallContact) return;
+    this.state.autoCallContact = { ...this.state.incomingCallContact };
+    this.state.incomingCallContact = null;
+    this.state.loadingKind = "autoCall";
+    this._go("serverLoading");
   }
 
   fail(message = "Please try again") {
