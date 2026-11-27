@@ -26,8 +26,12 @@ MTN MoMo Open API shape):
 
 NOTE: both money-movement calls go through this company's *merchant wallet*
 (a sandbox concept, not a free-text field) -- see `send()` docstring for what
-that means for a plain customer-to-customer transfer, and for the current
-known limitation when no merchant is linked yet.
+that means for a plain customer-to-customer transfer. A merchant must be
+onboarded (MTN back office -> Merchants tab -> "Onboard merchant", which
+needs a registered MTN line with no wallet on it yet) and selected when
+issuing/re-issuing API credentials; without that link, requesttopay/transfer
+fail with a clear "no merchant wallet" error. Live-confirmed: once linked,
+both legs succeed for real (not just reachability) against the sandbox.
 
 Paths are still env-configurable (MTN_MOMO_*_PATH below) in case a different
 team/sandbox build uses different ones -- no code change needed, just set

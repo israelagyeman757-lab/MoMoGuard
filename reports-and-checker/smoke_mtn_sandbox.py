@@ -10,6 +10,12 @@ Requires in .env (see .env.example):
 
 Run:
     python reports-and-checker/smoke_mtn_sandbox.py
+
+Optional: also prove a real transfer succeeds (not just reachability), by
+setting MTN_SMOKE_TEST_MSISDN in .env to a real MSISDN whose wallet is
+linked to these credentials' merchant (e.g. the merchant's own line) --
+this does a real 1 GHS self-transfer against the sandbox, so only set it
+when you mean to. Left unset, this extra check is skipped.
 """
 
 import os
@@ -41,10 +47,23 @@ def main() -> int:
 
     bank = MtnMomoBankPlug()
     result = bank.ping()
-    if result.get("ok"):
-        print(f"PASS  reached sandbox: {result.get('url')} -> HTTP {result.get('status_code')}")
+    if not result.get("ok"):
+        print(f"FAIL  could not reach sandbox cleanly: {result}")
+        return 1
+    print(f"PASS  reached sandbox: {result.get('url')} -> HTTP {result.get('status_code')}")
+
+    msisdn = os.environ.get("MTN_SMOKE_TEST_MSISDN")
+    if not msisdn:
+        print("SKIP  MTN_SMOKE_TEST_MSISDN not set -- not attempting a real transfer "
+              "(reachability + auth already confirmed above).")
         return 0
-    print(f"FAIL  could not reach sandbox cleanly: {result}")
+
+    send_result = bank.send(msisdn, msisdn, 1, unique_key=f"smoke-{msisdn}-selftest")
+    if send_result.get("status") == "ok":
+        print(f"PASS  real 1 GHS self-transfer for {msisdn} succeeded "
+              "(requesttopay + transfer both accepted by the sandbox).")
+        return 0
+    print(f"FAIL  real transfer did not succeed: {send_result}")
     return 1
 
 

@@ -30,8 +30,12 @@ By default the controller uses the simulated in-memory bank. To talk to the
 InnoFemme hackathon's real MTN MoMo sandbox (https://hackathon.innofemme.org/t/team-08)
 instead:
 
-1. In the sandbox's MTN back office (`/t/team-08/telco/mtn`), issue API
-   credentials via "Give a company API access".
+1. In the sandbox's MTN back office, onboard a merchant (Merchants tab ->
+   "Onboard merchant" — needs a registered MTN line with no wallet on it
+   yet), then issue API credentials via "Give a company API access"
+   (`/t/team-08/telco/mtn`) with that merchant selected in the dropdown.
+   Skipping the merchant gets you working subscriber lookups but
+   `requesttopay`/`transfer` will fail with a "no merchant wallet" error.
 2. `cp .env.example .env` and fill in `MTN_MOMO_CLIENT_ID`, `MTN_MOMO_API_KEY`,
    and set `BANK_PLUG_MODE=mtn_sandbox`. `.env` is gitignored — never commit it.
 3. `python reports-and-checker/smoke_mtn_sandbox.py` to confirm connectivity.
