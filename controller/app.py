@@ -3,6 +3,7 @@
 Run: python -m uvicorn controller.app:app --port 8000
 """
 
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -16,11 +17,20 @@ from controller.pause_manager import PauseManager
 from controller.plugs.bank_plug import BankPlug
 from controller.plugs.data_plug import DataPlug
 from controller.plugs.glance_plug import GlancePlug
+from controller.plugs.mtn_momo_bank_plug import MtnMomoBankPlug
 from controller.plugs.network_plug import NetworkPlug
 from controller.ussd import UssdRouter
 
 SOURCES = {"bank": "simulated", "network": "simulated",
            "calls": "simulated", "glance": "simulated"}
+
+
+def _make_bank_plug():
+    """BANK_PLUG_MODE=mtn_sandbox switches to the real hackathon sandbox;
+    anything else (including unset) keeps the simulated in-memory bank."""
+    if os.environ.get("BANK_PLUG_MODE", "simulated") == "mtn_sandbox":
+        return MtnMomoBankPlug()
+    return BankPlug()
 
 SENTENCE = {"low": "allow", "caution": "caution", "high": "hold", "very_high": "block"}
 
@@ -39,7 +49,7 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
         allow_headers=["*"],
     )
     settings = load_settings()
-    bank = BankPlug()
+    bank = _make_bank_plug()
     data = DataPlug()
     glance = GlancePlug()
     network = NetworkPlug()
@@ -109,8 +119,9 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
         scored = assess_payment(context, settings=settings)
         band = scored["band"]
         metrics.payments_checked += 1
+        sources = {**SOURCES, "bank": bank.source}
         base = {"band": band, "reasons": scored["reasons"],
-                "labels": scored["labels"], "sources": SOURCES}
+                "labels": scored["labels"], "sources": sources}
 
         pair_max = bank.pair_max_safe(sender, recipient)
         if needs_confirm(amount, pair_max, settings):

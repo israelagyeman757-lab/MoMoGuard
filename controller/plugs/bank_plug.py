@@ -1,7 +1,9 @@
 """Pretend bank: in-memory accounts that move pretend money.
 
-Swap for the sandbox BankPlug after the organisers' sandbox arrives;
-the interface (balance/history/send/pair_max_safe/reset) stays the same.
+Default plug. Set BANK_PLUG_MODE=mtn_sandbox to use
+controller.plugs.mtn_momo_bank_plug.MtnMomoBankPlug against the organisers'
+real hackathon sandbox instead; the interface (balance/history/send/
+pair_max_safe/reset) stays the same either way, see controller/app.py.
 """
 
 import copy

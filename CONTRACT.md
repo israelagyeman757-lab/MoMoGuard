@@ -48,6 +48,7 @@ Response (the phone page displays `message` as-is):
   "labels": ["possible_fake_reversal"],
   "sources": { "bank": "simulated", "network": "simulated", "calls": "simulated", "glance": "simulated" } }
 ```
+- `sources.bank` is `"mtn_sandbox"` instead of `"simulated"` when `BANK_PLUG_MODE=mtn_sandbox` is set (real MTN MoMo hackathon sandbox); all other sources are unaffected and the rest of the response shape is unchanged.
 
 - `confirm` is present only when `decision == "confirm"`.
 - `reference` is present only when `decision == "hold"`.
