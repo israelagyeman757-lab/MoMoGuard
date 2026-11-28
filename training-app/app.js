@@ -238,7 +238,7 @@ async function openShare(warningId, title) {
 }
 
 async function queueStkTip(warning) {
-  const text = `Walo: ${warning.title}`;
+  const text = `Walɔ: ${warning.title}`;
   try {
     await api("/rep/stk-tips", {
       method: "POST",
@@ -312,7 +312,7 @@ document.getElementById("share_sheet").addEventListener("click", async () => {
   const text = document.getElementById("share_text").textContent;
   if (navigator.share) {
     try {
-      await navigator.share({ title: "Walo warning", text });
+      await navigator.share({ title: "Walɔ warning", text });
     } catch {
       /* cancelled */
     }
