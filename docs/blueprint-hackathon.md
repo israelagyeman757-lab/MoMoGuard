@@ -1,4 +1,4 @@
-# MoMoGuard — Hackathon Implementation Blueprint (from the user, condensed faithfully)
+# Walo — Hackathon Implementation Blueprint (from the user, condensed faithfully)
 Community-powered mobile money fraud intelligence, education and early-warning service. Track 4 Community (supporting Track 1 Spot It Early). "Individual experiences become collective protection." It does NOT promise to block scams, intercept transactions or recover money.
 
 ## A. Community reporting
@@ -8,7 +8,7 @@ Report: suspicious number (optional), scam type (fake MTN rep, PIN/OTP request, 
 Statuses: UNVERIFIED, UNDER_REVIEW, CORROBORATED, DISPUTED, ARCHIVED. Rule-based pattern matching by number AND by scam tactic (category plus similar description), so different numbers can share one tactic. No AI claims. Moderators review before publishing; disputed reports produce no public accusation; warnings describe behaviour and never expose reporters.
 
 ## C. Number lookup and alerts
-Validate format, search MoMoGuard's DB, return NO REPORTS FOUND / UNDER REVIEW / MULTIPLE REPORTS / WARNING AVAILABLE, each with safety advice. "No reports found does not mean safe." Warnings are shown in the USSD simulator and smartphone UI. No real SMS.
+Validate format, search Walo's DB, return NO REPORTS FOUND / UNDER REVIEW / MULTIPLE REPORTS / WARNING AVAILABLE, each with safety advice. "No reports found does not mean safe." Warnings are shown in the USSD simulator and smartphone UI. No real SMS.
 
 ## D. Education and training
 Categories: fake agents, PIN/OTP requests, fake payment confirmations, reversal scams, impersonation/social engineering, fake jobs/payment requests, suspicious calls/messages. Each exercise: scenario, question, options, safest answer, explanation, score. Example: caller claims to be MTN and asks for the PIN; A give PIN, B follow instructions, C end the call and contact MTN officially (correct). Rule-based adaptive recommendations by weak category.
