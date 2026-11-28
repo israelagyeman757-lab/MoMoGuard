@@ -1,4 +1,14 @@
-# MoMoGuard API Contract — v0.2
+# MoMoGuard API Contract — v0.3
+
+**v0.3 note (Track 4 pivot):** the team is temporarily setting aside the Track 3
+fraud-blocking/scoring pitch (partly over Ghana Data Protection Act concerns
+with that framing) to focus on a Track 4 community-reporting + number-lookup
++ scam-education build. Everything below this note describes the **new,
+additive** community subsystem (`controller/community/`). Everything in the
+rest of this file (the payment-risk endpoints: `/assess`, `/confirm`,
+`/voice-result`, `/resume`, the old `/report` + `/check-number`, `/check-sms`,
+`/check-otp`) is **unchanged and still running** — kept intact, just no longer
+the headline, per the pivot decision.
 
 Shared contract between the **controller** (this repo, Python/FastAPI) and the **phone page + scoreboard** (Person 2).
 Nobody changes this file alone: post the change in the team chat, edit this file, raise the version number.
@@ -238,3 +248,89 @@ Restores pretend bank balances/history, clears paused payments, reports, metrics
 | 0240000009 | Reported Number | several independent reports (simulated Glance) |
 
 The project owner may adjust these via `controller/plugs/bank_plug.py` seed data; `POST /reset-demo` restores them.
+
+## Community endpoints (v0.3, Track 4 pivot)
+
+Additive, SQLite-backed, independent of `GlancePlug`/the old `/report` and `/check-number` above
+(which keep scoring payments exactly as before). A **report** is unreviewed and decays
+automatically (same 1 / 0.5-halving-every-30-days / gone-after-90 math as `GlancePlug`); a
+**warning** only exists once a moderator reviews a report and publishes it, and a warning does
+not decay. No auth/roles on the moderator endpoints — anyone who can call the API can moderate.
+This is a deliberate hackathon-scope cut, not an oversight.
+
+### POST /reports
+
+```json
+// request
+{ "number": "0240000005", "trick": "possible_impersonation",
+  "reporter_id": "aunty-demo", "detail": "optional free text" }
+// response
+{ "accepted": true, "message": "Thank you. This report has been sent for moderator review.",
+  "report": { "id": 1, "number": "...", "trick": "...", "detail": "...",
+              "reporter_hash": "...", "day": "...", "ts": "...", "status": "pending" } }
+```
+- `trick`: `possible_fake_reversal | possible_impersonation | possible_advance_fee | other`
+  (anything else is stored as `other`).
+- One report per reporter per number per day; a duplicate returns `accepted: false`.
+- `reporter_id` is stored as a keyed hash (pseudonymous), never raw — same convention as the
+  old `/report`, with its own, separate demo salt.
+
+### GET /reports?status=&number=
+
+```json
+{ "reports": [ { "id": 1, "number": "...", "trick": "...", "status": "pending|published|rejected",
+                 "ts": "...", "detail": "..." } ] }
+```
+Newest first. Both query params optional.
+
+### PATCH /reports/{id}/status
+
+```json
+// request
+{ "status": "published|rejected", "message": "optional custom warning text" }
+// response
+{ "report": { "...": "...", "status": "published" },
+  "warning": { "id": 1, "number": "...", "trick": "...", "message": "...",
+               "report_id": 1, "published_ts": "..." } }  // null when rejected
+```
+`published` creates a row in `warnings` (default message built from the trick, or `message` if
+supplied) and recomputes the number's reputation; `rejected` drops the report from that
+reputation and creates no warning. 404 if the report id doesn't exist.
+
+### GET /numbers/check/{phone_number}
+
+```json
+{ "number": "0240000005", "report_count": 2, "risk": "high|single_source|unreported",
+  "message": "...", "warnings": [ /* published warnings for this number */ ], "source": "community" }
+```
+"Unreported" never means "safe". This is what USSD menu item **4 Check a Number** now calls.
+
+### GET /warnings?number=
+
+```json
+{ "warnings": [ { "id": 1, "number": "...", "trick": "...", "message": "...", "published_ts": "..." } ],
+  "source": "community" }
+```
+Moderator-published only, newest first. This is what USSD menu item **3 Scam Alerts** now calls
+(showing the single most recent warning, plus a count if there's more than one).
+
+### POST /training/attempts
+
+```json
+// request
+{ "scenario_id": "mtn-pin-request", "answers": { "q1": "2", "q2": "2", "q3": "1" },
+  "user_id": "optional" }
+// response
+{ "scenario_id": "mtn-pin-request", "score": 3, "total": 3, "passed": true,
+  "results": [ { "id": "q1", "given": "2", "correct": true, "correct_answer": "2" }, ... ],
+  "message": "Well done — you spotted every trick in this message." }
+```
+404 if `scenario_id` is unknown. The one hardcoded scenario (`mtn-pin-request`) is also readable
+via `GET /training/scenarios/{scenario_id}`. This is what USSD menu item **6 Scam Training**
+walks through question-by-question. Training content, multiple scenarios, persisted per-question
+response history, and adaptive recommendations are explicit future work — out of scope for this
+build.
+
+### POST /reset-demo (updated)
+
+Also now clears `reports`, `numbers`, `warnings`, and `training_attempts`.

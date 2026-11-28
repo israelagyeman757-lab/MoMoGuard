@@ -11,6 +11,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from controller.brain.scoring import amount_in_words, assess_payment, load_settings, needs_confirm
+from controller.community import training as community_training
+from controller.community.store import CommunityStore
 from controller.message_agent.agent import assess_message
 from controller.metrics import MetricsStore
 from controller.pause_manager import PauseManager
@@ -31,6 +33,16 @@ def _make_bank_plug():
     if os.environ.get("BANK_PLUG_MODE", "simulated") == "mtn_sandbox":
         return MtnMomoBankPlug()
     return BankPlug()
+
+
+def _make_community_store() -> CommunityStore:
+    """COMMUNITY_DB_PATH, if set, persists reports/numbers/warnings in a real
+    file across restarts. Unset (the default, including every test) keeps a
+    fresh in-memory SQLite database per app instance -- the same "wiped on
+    create, wiped again by /reset-demo" convention the other plugs use, and
+    it keeps tests from leaking rows into each other through a shared file."""
+    path = os.environ.get("COMMUNITY_DB_PATH")
+    return CommunityStore(db_path=path) if path else CommunityStore(db_path=":memory:")
 
 SENTENCE = {"low": "allow", "caution": "caution", "high": "hold", "very_high": "block"}
 
@@ -54,6 +66,7 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
     glance = GlancePlug()
     network = NetworkPlug()
     metrics = MetricsStore()
+    community = _make_community_store()
     confirms: dict[str, dict] = {}
 
     def on_expire(reference: str) -> None:
@@ -229,11 +242,33 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
     async def do_check_number(number: str) -> dict:
         return glance.check(number)
 
-    ussd = UssdRouter(do_assess, do_confirm, do_voice_result, do_report, do_check_number)
+    # --- Community subsystem (Track 4 pivot): reports -> numbers -> warnings
+    # -> training, additive to the payment-risk code above. Only the USSD
+    # "Check a Number" (4) and "Scam Alerts" (3) screens switch over to this
+    # data; GlancePlug and the Brain's own /check-number keep working exactly
+    # as before for payment-risk scoring.
+    async def do_check_number_community(number: str) -> dict:
+        return community.check_number(number)
+
+    async def do_list_warnings() -> list[dict]:
+        return community.list_warnings()
+
+    async def do_training_attempt(scenario_id: str, answers: dict, user_id: str | None) -> dict:
+        result = community_training.score_attempt(scenario_id, answers)
+        community.record_training_attempt(scenario_id, result["score"], result["total"],
+                                          result["passed"], user_id=user_id)
+        metrics.record("training_attempt", scenario_id=scenario_id,
+                       score=result["score"], total=result["total"], passed=result["passed"])
+        return result
+
+    ussd = UssdRouter(do_assess, do_confirm, do_voice_result, do_report, do_check_number_community,
+                      list_warnings=do_list_warnings, training_attempt=do_training_attempt,
+                      training_scenario=community_training.get_scenario)
 
     app.state.bank = bank
     app.state.pm = pm
     app.state.metrics = metrics
+    app.state.community = community
 
     def _require(body: dict, *fields):
         missing = [f for f in fields if f not in body]
@@ -279,6 +314,51 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
     async def check_number(number: str):
         return await do_check_number(number)
 
+    # --- Community endpoints (Track 4 pivot) ---------------------------
+
+    @app.post("/reports")
+    async def create_report(body: dict):
+        _require(body, "number", "trick", "reporter_id")
+        return community.create_report(body["number"], body["trick"], body["reporter_id"],
+                                        detail=body.get("detail"))
+
+    @app.get("/reports")
+    async def list_reports(status: str | None = None, number: str | None = None):
+        return {"reports": community.list_reports(status=status, number=number)}
+
+    @app.patch("/reports/{report_id}/status")
+    async def update_report_status(report_id: int, body: dict):
+        _require(body, "status")
+        outcome = community.update_report_status(report_id, body["status"], body.get("message"))
+        if outcome is None:
+            raise HTTPException(status_code=404, detail="report not found")
+        metrics.record("report_status", report_id=report_id, status=body["status"])
+        return outcome
+
+    @app.get("/numbers/check/{phone_number}")
+    async def check_number_community(phone_number: str):
+        return community.check_number(phone_number)
+
+    @app.get("/warnings")
+    async def list_warnings(number: str | None = None):
+        return {"warnings": community.list_warnings(number=number), "source": community.source}
+
+    @app.get("/training/scenarios/{scenario_id}")
+    async def get_training_scenario(scenario_id: str):
+        scenario = community_training.get_scenario(scenario_id)
+        if scenario is None:
+            raise HTTPException(status_code=404, detail="scenario not found")
+        return scenario
+
+    @app.post("/training/attempts")
+    async def submit_training_attempt(body: dict):
+        _require(body, "scenario_id", "answers")
+        try:
+            return await do_training_attempt(body["scenario_id"], body["answers"],
+                                              body.get("user_id"))
+        except KeyError:
+            raise HTTPException(status_code=404, detail="unknown scenario")
+
     @app.post("/check-sms")
     async def check_sms(body: dict):
         result = assess_message(body)
@@ -312,6 +392,7 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
         data.reset()
         glance.reset()
         network.reset()
+        community.reset()
         await pm.reset()
         metrics.reset()
         confirms.clear()
