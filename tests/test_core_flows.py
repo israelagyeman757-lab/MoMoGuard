@@ -17,7 +17,7 @@ def test_report_submit_hidden_reporter(client):
             "description": "Paid registration fee for fake job",
         },
     )
-    assert r.status_code == 200
+    assert r.status_code == 201
     body = r.json()
     assert body["status"] == "UNVERIFIED"
     assert body["reporter_id"] == "[hidden]"

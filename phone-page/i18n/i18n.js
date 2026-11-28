@@ -1,25 +1,28 @@
-/** Centralized phone-page copy (PRD §10). English default; Twi needs native review. */
+const catalogues = { en: {}, tw: {} };
+let active = "en";
 
-const catalogs = { en: null, tw: null };
-let activeLocale = "en";
-
-export async function loadLocale(locale) {
-  activeLocale = locale === "tw" ? "tw" : "en";
-  if (!catalogs[activeLocale]) {
-    const response = await fetch(`./i18n/${activeLocale}.json`);
-    if (!response.ok) throw new Error(`locale ${activeLocale} unavailable`);
-    catalogs[activeLocale] = await response.json();
-  }
-  return catalogs[activeLocale];
+export async function initI18n() {
+  const stored = localStorage.getItem("walo.locale");
+  active = stored === "tw" ? "tw" : "en";
+  const [en, tw] = await Promise.all([
+    fetch("./i18n/en.json").then(response => response.ok ? response.json() : {}).catch(() => ({})),
+    fetch("./i18n/tw.json").then(response => response.ok ? response.json() : {}).catch(() => ({})),
+  ]);
+  catalogues.en = en;
+  catalogues.tw = tw;
 }
 
-export function t(key, fallback = "") {
-  const en = catalogs.en || {};
-  const locale = catalogs[activeLocale] || {};
-  const value = (locale[key] || en[key] || fallback || key).trim();
-  return value || en[key] || fallback || key;
+export function setLocale(locale) {
+  active = locale === "tw" ? "tw" : "en";
+  localStorage.setItem("walo.locale", active);
 }
 
-export function currentLocale() {
-  return activeLocale;
+export function getLocale() {
+  return active;
+}
+
+export function t(key, params) {
+  const value = catalogues[active]?.[key] ?? catalogues.en?.[key] ?? key;
+  if (!params) return value;
+  return String(value).replace(/\{(\w+)\}/g, (_, name) => (params[name] ?? "").toString());
 }

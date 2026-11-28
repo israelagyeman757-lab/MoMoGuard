@@ -108,7 +108,7 @@ def lookup_result(phone: str, reports: list[dict], warnings: list[dict]) -> dict
         }
 
     advice = (
-        "No reports found in MoMoGuard for this number. "
+        "No reports found in Walɔ for this number. "
         "That does NOT mean it is safe — always verify before sending money or sharing codes."
     )
     return {

@@ -3,38 +3,32 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { mapKeyboardEvent } from "../keyboardMap.js";
+import { KEYMAP, hardwareIdFor } from "../keyboardMap.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const indexHtml = readFileSync(join(here, "..", "index.html"), "utf8");
 
-function map(key, extras = {}) {
-  return mapKeyboardEvent({ key, ctrlKey: false, metaKey: false, altKey: false, ...extras });
-}
-
-test("Escape maps to back (not end)", () => {
-  const m = map("Escape");
-  assert.equal(m.phoneKey, "back");
-  assert.equal(m.highlight, null);
+test("Escape maps to back", () => {
+  assert.equal(KEYMAP.Escape, "back");
 });
 
-test("End and Home map to red end and green call", () => {
-  assert.equal(map("End").phoneKey, "end");
-  assert.equal(map("End").highlight, "#key_end");
-  assert.equal(map("Home").phoneKey, "call");
-  assert.equal(map("F3").phoneKey, "call");
-  assert.equal(map("F4").phoneKey, "end");
+test("End and Home map to end and call", () => {
+  assert.equal(KEYMAP.End, "end");
+  assert.equal(KEYMAP.Home, "call");
+  assert.equal(KEYMAP.F3, "call");
+  assert.equal(KEYMAP.F4, "end");
 });
 
-test("soft keys and digit keys target matching on-screen ids", () => {
-  assert.equal(map("[").highlight, "#soft_left");
-  assert.equal(map("]").highlight, "#soft_right");
-  assert.equal(map("5").highlight, "#key_5");
+test("hardware ids match on-screen buttons", () => {
+  assert.equal(hardwareIdFor("5"), "key_5");
+  assert.equal(hardwareIdFor("soft-left"), "key_soft_left");
+  assert.equal(hardwareIdFor("end"), "key_end");
   assert.match(indexHtml, /id="key_5"/);
   assert.match(indexHtml, /id="soft_left"/);
   assert.match(indexHtml, /id="key_end"/);
 });
 
-test("modifier keys are ignored", () => {
-  assert.equal(map("Enter", { ctrlKey: true }), null);
+test("Enter maps to ok (same as Select)", () => {
+  assert.equal(KEYMAP.Enter, "ok");
+  assert.equal(hardwareIdFor("ok"), "key_ok");
 });

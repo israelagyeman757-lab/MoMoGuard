@@ -1,461 +1,718 @@
-import { T9Input } from "./t9.js";
-import {
-  CARRIER_MENU,
-  MOMO_MENU,
-  REPORT_TYPES,
-} from "./menuData.js";
-import {
-  DEMO_SCAM_NUMBER,
-  INITIAL_MESSAGES,
-  mockCheckNumber,
-  mockTrainingQuestions,
-  mockWarnings,
-} from "./mockResponses.js";
+import { T9 } from "./t9.js";
+import { APPS, STK_MENU, REPORT_TYPES, CONTACTS, CALL_LOG } from "./menuData.js";
+import { INBOX, checkNumber as mockCheckNumber } from "./mock.js";
+import { softKeysFor } from "./softKeys.js";
+import { CONFIG } from "./config.js";
+import { t } from "./i18n/i18n.js";
 
-export const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calendar", "camera", "settings", "tools", "simToolkit"];
-const ACTIVE_APPS = new Set(["messages", "simToolkit"]);
-const APP_ENTRY = { messages: "messages", simToolkit: "stkCarrier" };
-
-const INPUT_SCREENS = new Set(["stkCheckInput", "stkReportNumber", "stkReportDesc"]);
+const MAX_REPORT_TYPES = REPORT_TYPES.length;
 
 export class PhoneFlow {
-  constructor({ mode = "mock", userId = "phone-user-1" } = {}) {
-    this.mode = mode;
-    this.userId = userId;
-    this.reporterId = userId;
-    this.messages = INITIAL_MESSAGES.map(m => ({ ...m }));
-    this.t9 = new T9Input({ mode: "number" });
-    this.reset(true);
+  constructor({ tapMs = CONFIG.T9_TAP_MS } = {}) {
+    this.t9 = new T9({ tapMs });
+    this.state = this.initialState();
   }
 
-  reset(hard = false) {
-    this.state = {
-      screen: hard ? "boot" : "idle",
-      selectedApp: "messages",
-      selectedMessage: 0,
-      selectedMenu: 0,
-      stkMenuIndex: 0,
-      quizOptionIndex: 0,
-      message: "",
-      messageTag: "",
-      notice: "",
+  initialState() {
+    return {
+      screen: "boot",
       history: [],
-      locked: hard ? false : false,
-      lockAwaitStar: false,
-      loadingKind: "",
-      lookup: null,
-      report: { phone_number: "", scam_type: "", description: "" },
-      warnings: [],
-      training: { questions: [], index: 0, answers: [], score: null, scenarios: [] },
-      smsReportNumber: "",
-      stkPopup: null,
-    };
-    this.t9.reset();
-    this.t9.setMode("number");
-  }
-
-  _go(screen) {
-    this.state.history.push(this.state.screen);
-    this.state.screen = screen;
-    this.state.notice = "";
-  if (["stkCarrier", "stkMomo", "stkReportType", "stkTrainingQ"].includes(screen)) {
-      this.state.selectedMenu = 0;
-    }
-    if (screen === "stkMomo") this.state.stkMenuIndex = 0;
-    if (INPUT_SCREENS.has(screen)) {
-      this.t9.reset();
-      this.t9.setMode(screen === "stkReportDesc" ? "text" : "number");
-    }
-  }
-
-  _back() {
-    const prev = this.state.history.pop() || "idle";
-    this.state.screen = prev;
-    this.state.notice = "";
-    if (!INPUT_SCREENS.has(prev)) this.t9.reset();
-  }
-
-  finishBoot() {
-    if (this.state.screen === "boot") this.state.screen = "lock";
-  }
-
-  menuCountForScreen(screen) {
-    if (screen === "stkMomo") return MOMO_MENU.length;
-    if (screen === "stkReportType") return REPORT_TYPES.length;
-    if (screen === "stkCarrier") return CARRIER_MENU.length;
-    if (screen === "apps") return APP_ORDER.length;
-    if (screen === "messages") return this.messages.length;
-    return 0;
-  }
-
-  _listIndexForScreen(screen) {
-    if (screen === "stkMomo") return this.state.stkMenuIndex;
-    return this.state.selectedMenu;
-  }
-
-  _setListIndex(screen, index) {
-    if (screen === "stkMomo") this.state.stkMenuIndex = index;
-    else this.state.selectedMenu = index;
-  }
-
-  _moveListMenu(screen, delta) {
-    const count = this.menuCountForScreen(screen);
-    if (!count) return;
-    const next = Math.min(count - 1, Math.max(0, this._listIndexForScreen(screen) + delta));
-    this._setListIndex(screen, next);
-  }
-
-  _activateListMenu(screen) {
-    if (screen === "stkCarrier") {
-      this.state.stkMenuIndex = 0;
-      this._go("stkMomo");
-      return;
-    }
-    if (screen === "stkMomo") {
-      const item = MOMO_MENU[this.state.stkMenuIndex];
-      if (!item) return;
-      if (item.id === "exit") {
-        this.reset();
-        this.state.screen = "idle";
-        return;
-      }
-      if (item.id.startsWith("loading:")) {
-        this.state.loadingKind = item.id.split(":")[1];
-        this._replace("loading");
-        return;
-      }
-      if (item.id === "stkTrainingScenarios") {
-        this.state.training.scenarios = [
-          { title: "Fake reversal", summary: "Caller asks you to send money back you never received." },
-          { title: "PIN trap", summary: "Urgent SMS asks for your MoMo PIN to verify your wallet." },
-        ];
-      }
-      this._go(item.id);
-      return;
-    }
-    if (screen === "stkReportType") {
-      const entry = REPORT_TYPES[this.state.selectedMenu];
-      if (!entry) return;
-      this.state.report.scam_type = entry.scam_type;
-      this._go("stkReportDesc");
-      return;
-    }
-    if (screen === "stkTrainingQ") {
-      const q = this.state.training.questions[this.state.training.index];
-      const selected = q?.answer_options?.[this.state.quizOptionIndex];
-      if (!selected) return;
-      this.state.training.answers.push({ question_id: q.id, selected });
-      this.state.training.index += 1;
-      this.state.quizOptionIndex = 0;
-      if (this.state.training.index >= this.state.training.questions.length) {
-        this.finishTrainingQuiz();
-      }
-    }
-  }
-
-  _handleInputKey(key, now) {
-    if (key === "clear") {
-      this.t9.clear();
-      return;
-    }
-    if (key === "ok" || key === "call") {
-      const value = this.t9.value;
-      if (!value.trim()) {
-        this.state.notice = "Enter a value.";
-        return;
-      }
-      this._submitInput(value.trim());
-      return;
-    }
-    if (/^[\d*#]$/.test(key)) this.t9.pressDigit(key, now);
-  }
-
-  _submitInput(value) {
-    const { screen } = this.state;
-    if (screen === "stkCheckInput") {
-      this.state.lookup = { phone: value };
-      this.state.loadingKind = "check";
-      this._replace("loading");
-      return;
-    }
-    if (screen === "stkReportNumber") {
-      this.state.report.phone_number = value === "0" ? "" : value;
-      this._go("stkReportType");
-      this.state.selectedMenu = 0;
-      return;
-    }
-    if (screen === "stkReportDesc") {
-      this.state.report.description = value;
-      this.state.loadingKind = "report";
-      this._replace("loading");
-    }
-  }
-
-  _replace(screen) {
-    this.state.screen = screen;
-    this.state.notice = "";
-  }
-
-  applyLookupResult(data) {
-    this.state.lookup = { phone: this.state.lookup?.phone, ...data };
-    this._replace("stkCheckResult");
-  }
-
-  applyLookupError() {
-    this.state.lookup = {
-      phone: this.state.lookup?.phone,
-      result: "ERROR",
-      message: "Could not reach server. Not proof the number is safe.",
-      disclaimer: "No reports found does not mean safe.",
-    };
-    this._replace("stkCheckResult");
-  }
-
-  applyReportResult(data) {
-    this.state.notice = data?.status || "UNVERIFIED";
-    this._replace("stkReportDone");
-  }
-
-  applyReportError() {
-    this.state.message = "Report could not be sent.";
-    this._replace("error");
-  }
-
-  applyWarnings(data) {
-    this.state.warnings = data?.warnings || [];
-    this._replace("stkWarnings");
-  }
-
-  applyTrainingQuestions(data) {
-    const qs = data?.questions || [];
-    this.state.training = {
-      ...this.state.training,
-      questions: qs.slice(0, 2),
-      index: 0,
-      answers: [],
+      menuIndex: 0,
+      inbox: INBOX.map(message => ({ ...message, unread: message.tag === "scam" })),
+      inboxIndex: 0,
+      currentSms: null,
+      contactIndex: 0,
+      calllogIndex: 0,
+      settingsIndex: 0,
+      dialNumber: "",
+      call: null,
+      callEnded: false,
+      scenarios: [],
+      scenarioIndex: 0,
+      scenario: null,
+      quiz: { questions: [], index: 0, optionIndex: 0, answers: [] },
       score: null,
+      scoreLocal: false,
+      results: null,
+      checkResult: null,
+      report: this.emptyReport(),
+      warnings: [],
+      warningsIndex: 0,
+      stkIndex: 0,
+      error: null,
+      errorReturn: "stkMomo",
+      popup: null,
+      queuedPopup: null,
+      pending: null,
+      notice: "",
+      calc: { entry: "", acc: null, op: null },
     };
-    this.state.quizOptionIndex = 0;
-    if (!this.state.training.questions.length) {
-      this.state.message = "No training questions.";
-      this._replace("error");
-      return;
-    }
-    this._go("stkTrainingQ");
   }
 
-  finishTrainingQuiz() {
-    const { questions, answers } = this.state.training;
-    let correct = 0;
-    questions.forEach((q, i) => {
-      if (answers[i]?.selected === q.correct_answer) correct += 1;
-    });
-    this.state.training.score = questions.length
-      ? Math.round((correct / questions.length) * 100)
-      : 0;
-    this._replace("stkTrainingDone");
+  emptyReport() {
+    return { number: "", typeIndex: 0, type: null, description: "" };
   }
 
-  applyCheckMock() {
-    const phone = this.state.lookup?.phone || "";
-    this.applyLookupResult(mockCheckNumber(phone));
-  }
-
-  applyWarningsMock() {
-    this.applyWarnings(mockWarnings());
-  }
-
-  applyTrainingMock() {
-    this.applyTrainingQuestions(mockTrainingQuestions());
-  }
-
-  applyReportMock() {
-    this.applyReportResult({ status: "UNVERIFIED", id: 1 });
-  }
-
-  showStkPopup(payload) {
-    this.state.stkPopup = {
-      text: payload?.text || "MoMoGuard alert",
-      more: payload?.more ?? false,
-      report: payload?.report ?? false,
+  get localeKeys() {
+    const keys = softKeysFor(this.state);
+    return {
+      left: keys.left ? t(keys.left) : "",
+      right: keys.right ? t(keys.right) : "",
     };
-    if (this.state.screen === "idle") {
-      this.state.screen = "stkPopup";
-    }
   }
 
-  dismissStkPopup() {
-    this.state.stkPopup = null;
-    if (this.state.screen === "stkPopup") this.state.screen = "idle";
+  inputValue() {
+    this.t9.commit();
+    return this.t9.text;
   }
 
-  receiveSimulatedSms({ sender = "UNKNOWN", senderNumber = DEMO_SCAM_NUMBER, text = "" } = {}) {
-    const message = {
-      id: `sms-${Date.now()}`,
-      sender,
-      senderNumber: senderNumber || sender,
-      time: "NOW",
-      preview: text.slice(0, 40),
-      text,
-      tag: "scam",
-      source: "simulated",
-    };
-    this.messages.unshift(message);
-    return message;
-  }
-
-  press(key, now = Date.now()) {
-    if (key === "softRight") {
-      if (this.state.screen === "idle") {
-        this._go("apps");
-        return;
-      }
-      if (this.state.screen === "lock") {
-        this.state.lockAwaitStar = true;
-        return;
-      }
-      key = "back";
-    }
-
-    if (key === "end") {
-      this.reset();
-      this.state.screen = "idle";
-      return;
-    }
-
-    const { screen } = this.state;
-
-    if (screen === "stkPopup") {
-      const popup = this.state.stkPopup;
-      if (key === "back") {
-        this.dismissStkPopup();
-        return;
-      }
-      if (key === "ok" && popup?.more) {
-        this.state.loadingKind = "warnings";
-        this.state.stkPopup = null;
-        this._replace("loading");
-        return;
-      }
-      if (key === "call" && popup?.report) {
-        this.state.report = { phone_number: "", scam_type: "", description: "From STK alert" };
-        this.state.stkPopup = null;
-        this._go("stkReportNumber");
-        return;
-      }
-      if (key === "ok") {
-        this.dismissStkPopup();
-      }
-      return;
-    }
-
-    if (screen === "lock") {
-      if (key === "ok") this.state.lockAwaitStar = true;
-      if (key === "*" && this.state.lockAwaitStar) {
-        this.state.lockAwaitStar = false;
-        this._replace("idle");
-      }
-      return;
-    }
-
-    if (INPUT_SCREENS.has(screen)) {
-      if (key === "back") {
-        this._back();
-        return;
-      }
-      this._handleInputKey(key, now);
-      return;
-    }
-
-    if (key === "back") {
-      if (screen === "idle" || screen === "boot") return;
-      if (screen === "stkMomo") {
-        this._go("stkCarrier");
-        return;
-      }
-      this._back();
-      return;
-    }
-
-    if (screen === "boot") return;
-
-    const menuScreens = new Set(["stkCarrier", "stkMomo", "stkReportType"]);
-    if (menuScreens.has(screen)) {
-      if (key === "up") this._moveListMenu(screen, -1);
-      if (key === "down") this._moveListMenu(screen, 1);
-      if (key === "ok") this._activateListMenu(screen);
-      return;
-    }
-
-    if (screen === "stkTrainingQ") {
-      const q = this.state.training.questions[this.state.training.index];
-      const opts = q?.answer_options || [];
-      if (key === "up") {
-        this.state.quizOptionIndex = Math.max(0, this.state.quizOptionIndex - 1);
-      }
-      if (key === "down") {
-        this.state.quizOptionIndex = Math.min(opts.length - 1, this.state.quizOptionIndex + 1);
-      }
-      if (key === "ok") this._activateListMenu("stkTrainingQ");
-      return;
-    }
-
-    if (screen === "idle") {
-      if (key === "ok") this._go("apps");
-      return;
-    }
-
-    if (screen === "apps") {
-      const idx = APP_ORDER.indexOf(this.state.selectedApp);
-      const mv = { left: -1, right: 1, up: -3, down: 3 };
-      if (mv[key] !== undefined) {
-        const next = Math.min(APP_ORDER.length - 1, Math.max(0, idx + mv[key]));
-        this.state.selectedApp = APP_ORDER[next];
-      }
-      if (key === "ok" && ACTIVE_APPS.has(this.state.selectedApp)) {
-        this._go(APP_ENTRY[this.state.selectedApp]);
-      }
-      return;
-    }
-
-    if (screen === "messages") {
-      if (key === "down") this.state.selectedMessage = Math.min(this.messages.length - 1, this.state.selectedMessage + 1);
-      if (key === "up") this.state.selectedMessage = Math.max(0, this.state.selectedMessage - 1);
-      if (key === "ok") {
-        const msg = this.messages[this.state.selectedMessage];
-        this.state.message = msg.text;
-        this.state.messageTag = msg.tag || "";
-        this.state.smsReportNumber = msg.senderNumber || DEMO_SCAM_NUMBER;
-        this._go("sms");
-      }
-      return;
-    }
-
-    if (screen === "sms") {
-      if (key === "ok" && this.state.messageTag === "scam") {
-        this.state.report = { phone_number: this.state.smsReportNumber, scam_type: "", description: "" };
-        this._go("stkReportType");
-        this.state.selectedMenu = 0;
-      }
-      return;
-    }
-
-    if (screen === "stkCheckResult" || screen === "stkReportDone" || screen === "stkWarnings"
-        || screen === "stkTrainingDone" || screen === "stkHelp" || screen === "stkTips"
-        || screen === "stkTrainingScenarios" || screen === "stkTrainingResults") {
-      if (key === "back" || key === "ok") {
-        this.state.screen = "stkMomo";
-      }
-    }
-
-    if (screen === "error" && key === "ok") this._back();
-  }
-
-  get entryDisplay() {
+  entryDisplay() {
     return this.t9.display();
   }
 
-  get inputMode() {
-    return this.t9.inputModeLabel();
+  set(screen) {
+    this.state.screen = screen;
+    this.state.notice = "";
+    return "full";
+  }
+
+  push(screen) {
+    this.state.history.push(this.state.screen);
+    return this.set(screen);
+  }
+
+  pop(fallback = "idle") {
+    const previous = this.state.history.pop() || fallback;
+    this.set(previous);
+    return "full";
+  }
+
+  skipBoot() {
+    if (this.state.screen !== "boot") return "none";
+    return this.set("lock");
+  }
+
+  unlock() {
+    if (this.state.screen !== "lock") return "none";
+    this.state.lockedHint = false;
+    this.set("idle");
+    if (this.state.queuedPopup) {
+      const payload = this.state.queuedPopup;
+      this.state.queuedPopup = null;
+      return this.showPopup(payload);
+    }
+    return "full";
+  }
+
+  // ---------------------------------------------------------------- keys --
+
+  primary() {
+    const s = this.state;
+    switch (s.screen) {
+      case "boot": return this.skipBoot();
+      case "lock": s.lockedHint = true; return "full";
+      case "idle": s.menuIndex = 0; return this.push("menu");
+      case "menu": return this.openApp();
+      case "inbox": return this.openSms();
+      case "sms":
+        if (s.currentSms?.tag === "scam") return this.startReport(s.currentSms.number);
+        return this.pop("inbox");
+      case "contacts": return this.startCall(CONTACTS[s.contactIndex].name, CONTACTS[s.contactIndex].number);
+      case "calllog": return this.startCall(CALL_LOG[s.calllogIndex].name, CALL_LOG[s.calllogIndex].number);
+      case "dialer": return this.startCall("", this.inputValue());
+      case "calling": return "none";
+      case "settings": return this.selectLanguage();
+      case "tools": return this.push("calculator");
+      case "calculator": return this.calculate();
+      case "clockApp": return this.pop("menu");
+      case "help": return this.pop("menu");
+      case "stkCarrier": return this.push("stkMomo");
+      case "stkMomo": return this.openStkItem();
+      case "stkScenarios": s.scenario = s.scenarios[s.scenarioIndex] || null; return this.push("stkScenarioDetail");
+      case "stkScenarioDetail": return this.set("stkMomo");
+      case "stkQuestion": return this.answerQuestion();
+      case "stkScore": return this.set("stkMomo");
+      case "stkResults": return this.set("stkMomo");
+      case "stkCheckInput": return this.submitCheck();
+      case "stkCheckResult": return this.set("stkMomo");
+      case "stkReportNumber": return this.submitReportNumber();
+      case "stkReportType": return this.submitReportType();
+      case "stkReportDesc": return this.submitReportDesc();
+      case "stkReportDone": return this.set("stkMomo");
+      case "stkWarnings": return this.set("stkMomo");
+      case "stkTips": return this.set("stkMomo");
+      case "stkHelp": return this.set("stkMomo");
+      case "stkLoading": return "none";
+      case "stkError": return this.set(this.state.errorReturn || "stkMomo");
+      case "stkPopup": return this.popupPrimary();
+      default: return "none";
+    }
+  }
+
+  back() {
+    const s = this.state;
+    switch (s.screen) {
+      case "boot":
+      case "idle":
+      case "lock":
+      case "calling":
+        if (s.screen === "calling") return this.endCall();
+        return "none";
+      case "menu": return this.pop("idle");
+      case "inbox": return this.pop("menu");
+      case "sms": return this.pop("inbox");
+      case "contacts":
+      case "calllog":
+      case "settings":
+      case "clockApp":
+      case "help":
+        return this.pop("menu");
+      case "tools": return this.pop("menu");
+      case "calculator": return this.pop("tools");
+      case "dialer": return this.set("idle");
+      case "stkCarrier": return this.pop("menu");
+      case "stkMomo": return this.pop("stkCarrier");
+      case "stkScenarios":
+      case "stkScenarioDetail":
+      case "stkQuestion":
+      case "stkScore":
+      case "stkResults":
+      case "stkCheckResult":
+      case "stkReportDone":
+      case "stkWarnings":
+      case "stkTips":
+      case "stkHelp":
+        return this.set("stkMomo");
+      case "stkCheckInput":
+      case "stkReportNumber":
+        return this.set("stkMomo");
+      case "stkReportType": return this.set("stkReportNumber");
+      case "stkReportDesc": return this.set("stkReportType");
+      case "stkLoading": return "none";
+      case "stkError": return this.set(s.errorReturn || "stkMomo");
+      case "stkPopup": return this.dismissPopup();
+      default: return "none";
+    }
+  }
+
+  clear() {
+    const s = this.state;
+    if (this.isInputScreen()) {
+      if (!this.t9.text && !this.t9.pendingKey) {
+        s.notice = "";
+        return this.back();
+      }
+      this.t9.backspace();
+      s.notice = "";
+      return "entry";
+    }
+    if (s.screen === "calculator") {
+      s.calc.entry = "";
+      return "full";
+    }
+    return this.back();
+  }
+
+  call() {
+    const s = this.state;
+    switch (s.screen) {
+      case "dialer": return this.startCall("", this.inputValue());
+      case "contacts": return this.startCall(CONTACTS[s.contactIndex].name, CONTACTS[s.contactIndex].number);
+      case "calllog": return this.startCall(CALL_LOG[s.calllogIndex].name, CALL_LOG[s.calllogIndex].number);
+      case "stkCheckInput": return this.submitCheck();
+      case "stkReportNumber": return this.submitReportNumber();
+      case "stkReportDesc": return this.submitReportDesc();
+      case "stkPopup":
+        if (s.popup?.report) return this.startReport("", t("stkAlert.desc"));
+        return "none";
+      default: return "none";
+    }
+  }
+
+  end() {
+    if (this.state.screen === "lock" || this.state.screen === "boot") return "none";
+    this.state.pending = null;
+    this.state.popup = null;
+    this.state.queuedPopup = null;
+    this.state.quiz = { questions: [], index: 0, optionIndex: 0, answers: [] };
+    this.state.report = this.emptyReport();
+    this.state.error = null;
+    this.state.call = null;
+    this.state.callEnded = false;
+    this.state.history = [];
+    this.state.notice = "";
+    this.t9.clear();
+    this.state.screen = "idle";
+    return "full";
+  }
+
+  digit(key) {
+    const s = this.state;
+    if (s.screen === "boot") return this.skipBoot();
+    if (s.screen === "lock") {
+      if (key === "*") return this.unlock();
+      return "none";
+    }
+    if (s.screen === "idle") {
+      if (/^\d$/.test(key)) {
+        this.t9.setMode("num");
+        this.t9.clear();
+        this.t9.tap(key);
+        s.dialNumber = this.t9.text;
+        return this.push("dialer");
+      }
+      return "none";
+    }
+    if (this.isInputScreen()) {
+      const changed = this.t9.tap(key);
+      s.notice = "";
+      return changed ? "entry" : "none";
+    }
+    if (s.screen === "calculator") {
+      if (key === "*") return this.calcOperator();
+      if (key === "#") return this.calculate();
+      if (/^\d$/.test(key)) {
+        s.calc.entry = (s.calc.entry + key).slice(0, 12);
+        return "full";
+      }
+      return "none";
+    }
+    return "none";
+  }
+
+  nav(direction) {
+    const s = this.state;
+    const moves = { up: -1, down: 1, left: -1, right: 1 };
+    if (s.screen === "menu") {
+      const delta = direction === "up" ? -3 : direction === "down" ? 3 : direction === "left" ? -1 : 1;
+      s.menuIndex = Math.min(APPS.length - 1, Math.max(0, s.menuIndex + delta));
+      return "highlight";
+    }
+    if (s.screen === "inbox") {
+      const next = Math.min(s.inbox.length - 1, Math.max(0, s.inboxIndex + moves[direction]));
+      if (next === s.inboxIndex) return "none";
+      s.inboxIndex = next;
+      return "highlight";
+    }
+    if (s.screen === "contacts" || s.screen === "calllog" || s.screen === "settings" || s.screen === "stkMomo" || s.screen === "stkScenarios" || s.screen === "stkReportType") {
+      const length = this.listLength();
+      const next = Math.min(length - 1, Math.max(0, this.listIndex() + moves[direction]));
+      this.setListIndex(next);
+      return "highlight";
+    }
+    if (s.screen === "stkQuestion") {
+      const options = s.quiz.questions[s.quiz.index]?.answer_options || [];
+      const next = Math.min(options.length - 1, Math.max(0, s.quiz.optionIndex + moves[direction]));
+      if (next === s.quiz.optionIndex) return "none";
+      s.quiz.optionIndex = next;
+      return "highlight";
+    }
+    if (s.screen === "stkWarnings") {
+      const next = Math.min(Math.max(0, s.warnings.length - 1), Math.max(0, s.warningsIndex + moves[direction]));
+      if (next === s.warningsIndex) return "none";
+      s.warningsIndex = next;
+      return "highlight";
+    }
+    return "none";
+  }
+
+  longZero() {
+    if (!this.isNumberInput()) return "none";
+    const changed = this.t9.insert("+");
+    return changed ? "entry" : "none";
+  }
+
+  commitText() {
+    if (this.t9.commit()) return "entry";
+    return "none";
+  }
+
+  // ------------------------------------------------------------- screens --
+
+  isInputScreen() {
+    return ["dialer", "stkCheckInput", "stkReportNumber", "stkReportDesc"].includes(this.state.screen);
+  }
+
+  isNumberInput() {
+    return ["dialer", "stkCheckInput", "stkReportNumber"].includes(this.state.screen) && this.t9.mode === "num";
+  }
+
+  openApp() {
+    const app = APPS[this.state.menuIndex];
+    this.state.history = [];
+    switch (app.id) {
+      case "messages": this.state.inboxIndex = 0; return this.push("inbox");
+      case "contacts": this.state.contactIndex = 0; return this.push("contacts");
+      case "calllog": this.state.calllogIndex = 0; return this.push("calllog");
+      case "stk": this.state.stkIndex = 0; return this.push("stkCarrier");
+      case "meda": return "none";
+      case "settings": return this.push("settings");
+      case "clock": return this.push("clockApp");
+      case "tools": return this.push("tools");
+      case "help": return this.push("help");
+      default: return "none";
+    }
+  }
+
+  openSms() {
+    const message = this.state.inbox[this.state.inboxIndex];
+    if (!message) return "none";
+    message.unread = false;
+    this.state.currentSms = message;
+    this.state.history = ["inbox"];
+    return this.set("sms");
+  }
+
+  startCall(name, number) {
+    this.state.call = { name: name || "", number: number || "" };
+    this.state.callEnded = false;
+    this.state.history = [];
+    return this.set("calling");
+  }
+
+  markCallEnded() {
+    if (this.state.screen !== "calling") return "none";
+    this.state.callEnded = true;
+    return "full";
+  }
+
+  endCall() {
+    if (this.state.screen !== "calling") return "none";
+    this.state.call = null;
+    this.state.callEnded = false;
+    return this.set("idle");
+  }
+
+  selectLanguage() {
+    return "full";
+  }
+
+  calcOperator() {
+    const calc = this.state.calc;
+    const operators = ["+", "-", "*", "/"];
+    if (calc.entry !== "" && calc.acc === null) {
+      calc.acc = Number(calc.entry);
+      calc.entry = "";
+      calc.op = "+";
+      return "full";
+    }
+    if (calc.acc !== null && calc.op) {
+      const index = operators.indexOf(calc.op);
+      calc.op = operators[(index + 1) % operators.length];
+      return "full";
+    }
+    return "none";
+  }
+
+  calculate() {
+    const calc = this.state.calc;
+    if (calc.entry === "" && calc.acc === null) return "none";
+    if (calc.acc === null) {
+      calc.acc = Number(calc.entry);
+      calc.entry = "";
+      calc.op = null;
+      return "full";
+    }
+    const value = Number(calc.entry || calc.acc);
+    let result = calc.acc;
+    if (calc.op === "+") result += value;
+    if (calc.op === "-") result -= value;
+    if (calc.op === "*") result *= value;
+    if (calc.op === "/") result = value === 0 ? NaN : result / value;
+    calc.acc = null;
+    calc.op = null;
+    calc.entry = Number.isFinite(result) ? String(Math.round(result * 1000) / 1000) : "0";
+    return "full";
+  }
+
+  // ------------------------------------------------------------- STK menu --
+
+  openStkItem() {
+    const item = STK_MENU[this.state.stkIndex];
+    switch (item.id) {
+      case "training": return this.fetch("scenarios");
+      case "quiz": return this.fetch("questions");
+      case "results": return this.fetch("results");
+      case "check":
+        this.t9.setMode("num");
+        this.t9.clear();
+        return this.push("stkCheckInput");
+      case "report":
+        this.state.report = this.emptyReport();
+        this.t9.setMode("num");
+        this.t9.clear();
+        return this.push("stkReportNumber");
+      case "warnings": return this.fetch("warnings");
+      case "tips": return this.push("stkTips");
+      case "help": return this.push("stkHelp");
+      case "exit": return this.end();
+      default: return "none";
+    }
+  }
+
+  fetch(kind, args = {}) {
+    this.state.pending = { kind, ...args };
+    return this.set("stkLoading");
+  }
+
+  resolve(pending, result) {
+    if (!this.state.pending) return "none";
+    this.state.pending = null;
+    switch (pending.kind) {
+      case "scenarios": {
+        if (!result.ok) return this.showError("error.network", "stkMomo");
+        this.state.scenarios = result.data.scenarios || [];
+        this.state.scenarioIndex = 0;
+        return this.set("stkScenarios");
+      }
+      case "questions": {
+        if (!result.ok) return this.showError("error.network", "stkMomo");
+        const questions = (result.data.questions || []).slice(0, 2);
+        if (!questions.length) return this.showError("error.network", "stkMomo");
+        this.state.quiz = { questions, index: 0, optionIndex: 0, answers: [] };
+        return this.set("stkQuestion");
+      }
+      case "attempt": {
+        this.finishAttempt(result);
+        return "full";
+      }
+      case "results": {
+        if (!result.ok) return this.showError("error.network", "stkMomo");
+        this.state.results = result.data;
+        return this.set("stkResults");
+      }
+      case "warnings": {
+        this.state.warnings = result.ok ? result.data.warnings || [] : [];
+        this.state.warningsIndex = 0;
+        return this.set("stkWarnings");
+      }
+      case "check": {
+        if (result.ok) {
+          this.state.checkResult = result.data;
+        } else {
+          this.state.checkResult = {
+            result: "ERROR",
+            reports_count: 0,
+          };
+        }
+        return this.set("stkCheckResult");
+      }
+      case "report": {
+        if (!result.ok) {
+          this.state.errorReturn = "stkReportDesc";
+          return this.showError("report.failed", "stkReportDesc");
+        }
+        this.state.report.status = result.data.status;
+        return this.set("stkReportDone");
+      }
+      default: return "none";
+    }
+  }
+
+  showError(messageKey, returnScreen) {
+    this.state.error = { messageKey };
+    this.state.errorReturn = returnScreen;
+    return this.set("stkError");
+  }
+
+  // ---------------------------------------------------------------- quiz --
+
+  answerQuestion() {
+    const quiz = this.state.quiz;
+    const question = quiz.questions[quiz.index];
+    if (!question) return "none";
+    const selected = question.answer_options[quiz.optionIndex];
+    quiz.answers.push({ question_id: question.id, selected_answer: selected });
+    if (quiz.index + 1 < quiz.questions.length) {
+      quiz.index += 1;
+      quiz.optionIndex = 0;
+      return "full";
+    }
+    const body = {
+      user_id: CONFIG.USER_ID,
+      display_name: CONFIG.USER_ID,
+      assessment_type: "pre",
+      answers: quiz.answers,
+    };
+    return this.fetch("attempt", { body });
+  }
+
+  finishAttempt(result) {
+    const quiz = this.state.quiz;
+    if (result.ok) {
+      this.state.score = result.data.score;
+      this.state.scoreLocal = false;
+    } else {
+      let correct = 0;
+      for (const answer of quiz.answers) {
+        const question = quiz.questions.find(item => item.id === answer.question_id);
+        if (question && question.correct_answer === answer.selected_answer) correct += 1;
+      }
+      this.state.score = quiz.answers.length ? Math.round((correct / quiz.answers.length) * 1000) / 10 : 0;
+      this.state.scoreLocal = true;
+    }
+    this.set("stkScore");
+  }
+
+  // --------------------------------------------------------------- check --
+
+  submitCheck() {
+    const number = this.inputValue();
+    if (!number) {
+      this.state.notice = t("check.enterValue");
+      return "full";
+    }
+    if (!/^0\d{9}$/.test(number)) {
+      this.state.notice = t("check.invalid");
+      return "full";
+    }
+    return this.fetch("check", { number });
+  }
+
+  // -------------------------------------------------------------- report --
+
+  submitReportNumber() {
+    const value = this.inputValue();
+    this.state.report.number = value === "0" ? "" : value;
+    this.state.report.typeIndex = 0;
+    this.t9.setMode("num");
+    this.t9.clear();
+    return this.set("stkReportType");
+  }
+
+  submitReportType() {
+    const type = REPORT_TYPES[this.state.report.typeIndex];
+    this.state.report.type = type.value;
+    this.t9.setMode("abc");
+    this.t9.clear();
+    return this.set("stkReportDesc");
+  }
+
+  submitReportDesc() {
+    const description = this.inputValue() || "Reported via SIM Toolkit";
+    this.state.report.description = description;
+    const body = {
+      reporter_id: CONFIG.USER_ID,
+      scam_type: this.state.report.type,
+      description,
+    };
+    if (this.state.report.number) body.phone_number = this.state.report.number;
+    return this.fetch("report", { body });
+  }
+
+  startReport(number, description = "") {
+    this.state.report = this.emptyReport();
+    this.state.report.number = number || "";
+    this.state.report.description = description;
+    this.state.report.typeIndex = 0;
+    this.t9.setMode("num");
+    this.t9.clear();
+    if (number) {
+      this.state.history = this.state.history.length ? this.state.history : [];
+      return this.push("stkReportType");
+    }
+    return this.push("stkReportNumber");
+  }
+
+  // --------------------------------------------------------------- popup --
+
+  showPopup(payload) {
+    this.state.popup = payload;
+    this.state.history = [];
+    return this.set("stkPopup");
+  }
+
+  receivePopup(payload) {
+    const screen = this.state.screen;
+    if (screen === "lock" || screen === "boot") {
+      this.state.queuedPopup = payload;
+      return "none";
+    }
+    return this.showPopup(payload);
+  }
+
+  popupPrimary() {
+    if (this.state.popup?.more) {
+      this.state.popup = null;
+      return this.fetch("warnings");
+    }
+    return this.dismissPopup();
+  }
+
+  dismissPopup() {
+    this.state.popup = null;
+    return this.set("idle");
+  }
+
+  // --------------------------------------------------------------- lists --
+
+  listLength() {
+    const s = this.state;
+    switch (s.screen) {
+      case "contacts": return CONTACTS.length;
+      case "calllog": return CALL_LOG.length;
+      case "settings": return 2;
+      case "stkMomo": return STK_MENU.length;
+      case "stkScenarios": return s.scenarios.length;
+      case "stkReportType": return MAX_REPORT_TYPES;
+      default: return 0;
+    }
+  }
+
+  listIndex() {
+    const s = this.state;
+    switch (s.screen) {
+      case "contacts": return s.contactIndex;
+      case "calllog": return s.calllogIndex;
+      case "settings": return s.settingsIndex;
+      case "stkMomo": return s.stkIndex;
+      case "stkScenarios": return s.scenarioIndex;
+      case "stkReportType": return s.report.typeIndex;
+      default: return 0;
+    }
+  }
+
+  setListIndex(index) {
+    const s = this.state;
+    switch (s.screen) {
+      case "contacts": s.contactIndex = index; break;
+      case "calllog": s.calllogIndex = index; break;
+      case "settings": s.settingsIndex = index; break;
+      case "stkMomo": s.stkIndex = index; break;
+      case "stkScenarios": s.scenarioIndex = index; break;
+      case "stkReportType": s.report.typeIndex = index; break;
+      default: break;
+    }
+  }
+
+  /** Test and debug helper: same routes as hardware dispatch (OK == soft-left). */
+  press(action) {
+    if (action === "ok" || action === "soft-left") return this.primary();
+    if (action === "soft-right" || action === "softRight") return this.back();
+    if (action === "end") return this.end();
+    if (action === "clear") return this.clear();
+    if (action === "call") return this.call();
+    if (["up", "down", "left", "right"].includes(action)) return this.nav(action);
+    if (/^[\d*#]$/.test(action)) return this.digit(action);
+    return "none";
+  }
+
+  finishBoot() {
+    return this.skipBoot();
+  }
+
+  showStkPopup(payload) {
+    return this.showPopup(payload);
+  }
+
+  dismissStkPopup() {
+    return this.dismissPopup();
+  }
+
+  applyCheckMock() {
+    const number = this.state.pending?.number || this.inputValue() || "0244123456";
+    const pending = { kind: "check", number };
+    this.state.pending = pending;
+    return this.resolve(pending, mockCheckNumber(number));
   }
 }

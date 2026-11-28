@@ -1,8 +1,13 @@
 {
-  "name": "momoguard-phone-preview",
+  "name": "walo-phone-preview",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "playwright test -c playwright.config.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
   }
 }
