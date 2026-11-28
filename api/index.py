@@ -15,5 +15,5 @@ from controller.app import create_app
 
 _controller = create_app()
 
-app = FastAPI(title="Walo API gateway", version="1.0")
+app = FastAPI(title="Walɔ API gateway", version="1.0")
 app.mount("/api", _controller)

@@ -1,7 +1,7 @@
 /** STK list menus (no digit prefixes — navigation is highlight + OK). */
 
 export const CARRIER_MENU = [
-  { id: "stkMomo", label: "Walo" },
+  { id: "stkMomo", label: "Walɔ" },
 ];
 
 export const MOMO_MENU = [

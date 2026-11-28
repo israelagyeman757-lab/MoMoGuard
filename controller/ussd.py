@@ -8,7 +8,7 @@ SIM_LABEL = "[SIMULATED USSD — not connected to MTN]"
 
 MAIN_MENU = (
     f"{SIM_LABEL}\n"
-    "Walo Community\n"
+    "Walɔ Community\n"
     "1 Check suspicious number\n"
     "2 Learn about scams\n"
     "3 Report suspicious activity\n"

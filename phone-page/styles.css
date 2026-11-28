@@ -35,7 +35,7 @@ body {
   height: 100%;
   overflow: hidden;
   color: var(--lcd-ink);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Segoe UI", "Noto Sans", "DejaVu Sans", system-ui, -apple-system, sans-serif;
   background: radial-gradient(ellipse 90% 70% at 50% 20%, #2c2c32, var(--stage-bg));
 }
 
@@ -211,6 +211,7 @@ button:focus-visible {
   padding: 6px 7px 2px;
   overflow-y: auto;
   overflow-x: hidden;
+  font-family: "Tahoma", "Noto Sans", "DejaVu Sans", "Segoe UI", sans-serif;
   font-size: 13px;
   line-height: 1.28;
   scrollbar-width: thin;

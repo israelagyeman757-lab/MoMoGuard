@@ -280,7 +280,7 @@ export class PhoneFlow {
 
   showStkPopup(payload) {
     this.state.stkPopup = {
-      text: payload?.text || "Walo alert",
+      text: payload?.text || "Walɔ alert",
       more: payload?.more ?? false,
       report: payload?.report ?? false,
     };
