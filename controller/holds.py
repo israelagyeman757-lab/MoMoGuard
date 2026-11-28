@@ -207,6 +207,15 @@ def register_holds_routes(app_router: APIRouter, db: Any) -> None:
         return svc.reverse(hold_id, rep_id=rep.get("user_id") if isinstance(rep, dict) else None)
 
 
+def _plugin_body(payload: dict[str, Any]) -> dict[str, Any]:
+    data = payload.get("data")
+    return data if isinstance(data, dict) else payload
+
+
+def _event_type(payload: dict[str, Any], body: dict[str, Any]) -> str:
+    return str(payload.get("type") or body.get("type") or "")
+
+
 def handle_sandbox_plugin(
     payload: dict[str, Any],
     evaluate: Callable[[dict], dict],
@@ -214,29 +223,31 @@ def handle_sandbox_plugin(
 ) -> dict[str, Any]:
     """Answer Innofemme plugin webhook within 2s budget."""
     point = payload.get("point") or payload.get("pluginPoint") or ""
+    body = _plugin_body(payload)
     if point == "payment.receive":
-        payer = (payload.get("payer") or {}).get("msisdn", "")
-        payee = (payload.get("payee") or {}).get("msisdn", "")
-        amount = float(payload.get("amount") or 0)
-        before = payload.get("paymentsFromThisPayerBefore")
+        payee_obj = body.get("payee") or {}
+        if payee_obj.get("walletType") == "agent" or _event_type(payload, body) == "cashout":
+            return {"decision": "allow", "message": "Walɔ skip receive evaluation"}
+        payer = (body.get("payer") or {}).get("msisdn", "")
+        payee = payee_obj.get("msisdn", "")
+        amount = float(body.get("amount") or 0)
+        before = body.get("paymentsFromThisPayerBefore")
         evaluate(
             {
                 "payer": payer,
                 "payee": payee,
                 "amount": amount,
                 "payments_from_payer_before": before,
-                "recipient_wallet_age_days": _wallet_age_days(
-                    (payload.get("payee") or {}).get("walletOpenedAt")
-                ),
-                "sim_swap_recent": _sim_swap_recent((payload.get("payer") or {}).get("lastSimSwapAt")),
-                "different_payers_24h": (payload.get("payee") or {}).get("differentPayersInLast24Hours"),
-                "sandbox_txn_ref": _sandbox_txn_ref(payload),
+                "recipient_wallet_age_days": _wallet_age_days(payee_obj.get("walletOpenedAt")),
+                "sim_swap_recent": _sim_swap_recent((body.get("payer") or {}).get("lastSimSwapAt")),
+                "different_payers_24h": payee_obj.get("differentPayersInLast24Hours"),
+                "sandbox_txn_ref": _sandbox_txn_ref(body),
             }
         )
         return {"decision": "allow", "message": "Walɔ recorded hold policy"}
 
     if point == "payment.authorize":
-        payer = (payload.get("payer") or {}).get("msisdn", "")
+        payer = (body.get("payer") or {}).get("msisdn", "")
         if not payer:
             return {"decision": "allow", "message": "Walɔ clear"}
         # Cash-out and P2P authorize: block when this wallet (payer) has an active hold row.
@@ -269,7 +280,12 @@ def _sim_swap_recent(last_swap: str | None) -> bool:
 
 
 def _sandbox_txn_ref(payload: dict[str, Any]) -> str | None:
-    ref = payload.get("transactionId") or payload.get("referenceId") or payload.get("txnId")
+    ref = (
+        payload.get("transactionId")
+        or payload.get("referenceId")
+        or payload.get("reference")
+        or payload.get("txnId")
+    )
     if ref:
         return str(ref)
     return None
