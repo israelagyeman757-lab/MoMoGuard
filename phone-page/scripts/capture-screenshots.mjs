@@ -39,6 +39,29 @@ function staticServer() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function runCheckFlow(page, d, number, shotName) {
+  await d("end");
+  await page.waitForFunction(() => window.__phone.flow.state.screen === "idle");
+  await d("soft-left");
+  await page.waitForFunction(() => window.__phone.flow.state.screen === "menu");
+  await d("down");
+  await d("ok");
+  await page.waitForFunction(() => window.__phone.flow.state.screen === "stkCarrier");
+  await d("ok");
+  await page.waitForFunction(() => window.__phone.flow.state.screen === "stkMomo");
+  for (let i = 0; i < 3; i += 1) await d("down");
+  await d("ok");
+  await page.waitForFunction(() => window.__phone.flow.state.screen === "stkCheckInput");
+  for (const digit of number) await d(digit);
+  await d("ok");
+  await page.waitForFunction(
+    () => window.__phone.flow.state.screen === "stkCheckResult",
+    null,
+    { timeout: 8000 },
+  );
+  await page.screenshot({ path: join(outDir, shotName) });
+}
+
 async function main() {
   const { server, base } = await staticServer();
   const browser = await chromium.launch();
@@ -46,7 +69,6 @@ async function main() {
   await page.goto(`${base}/phone-page/index.html?mode=mock`);
   await page.waitForFunction(() => Boolean(window.__phone));
 
-  const screen = () => page.evaluate(() => window.__phone.flow.state.screen);
   const d = (a) => page.evaluate((action) => window.__phone.dispatch(action), a);
 
   await page.waitForFunction(
@@ -69,17 +91,8 @@ async function main() {
   await page.waitForFunction(() => window.__phone.flow.state.screen === "stkMomo");
   await page.screenshot({ path: join(outDir, "03-stk-walo-menu.png") });
 
-  for (let i = 0; i < 3; i += 1) await d("down");
-  await d("ok");
-  await page.waitForFunction(() => window.__phone.flow.state.screen === "stkCheckInput");
-  for (const digit of "0244123456") await d(digit);
-  await d("ok");
-  await page.waitForFunction(
-    () => window.__phone.flow.state.screen === "stkCheckResult",
-    null,
-    { timeout: 8000 },
-  );
-  await page.screenshot({ path: join(outDir, "04-check-result.png") });
+  await runCheckFlow(page, d, "0244123456", "04-check-result-found.png");
+  await runCheckFlow(page, d, "0244777666", "04-check-result-not-found.png");
 
   await d("end");
   await page.waitForFunction(() => window.__phone.flow.state.screen === "idle");

@@ -5,6 +5,7 @@ import { APPS, STK_MENU, REPORT_TYPES, CONTACTS, CALL_LOG, TIPS } from "./menuDa
 import { hardwareIdFor, KEYMAP, isTypingTarget } from "./keyboardMap.js";
 import * as api from "./api.js";
 import * as mock from "./mock.js";
+import { checkResultLines } from "./checkResultView.js";
 
 const STK_TEXT = "High-risk reversal scam active in your area. Do not send money to unknown callers.";
 const data = CONFIG.MODE === "controller" ? api : mock;
@@ -246,13 +247,12 @@ function bodyMarkup() {
     case "stkCheckInput":
       return `${header("header.check")}${entryBlock({ hint: t("check.hint"), notice: s.notice })}`;
     case "stkCheckResult": {
-      const result = s.checkResult || {};
+      const lines = checkResultLines(s.checkResult || {}, t);
       return `${header("header.check")}
-        <div class="name" style="font-weight:700">${esc(result.result || "")}</div>
-        <div class="copy">${esc(result.message || "")}</div>
-        ${typeof result.reports_count === "number" ? `<div class="hint">${esc(String(result.reports_count))}</div>` : ""}
-        <div class="notice">${esc(result.disclaimer || t("check.disclaimer"))}</div>
-        `;
+        <div class="name" style="font-weight:700">${esc(lines.statusLabel)}</div>
+        <div class="copy">${esc(lines.message)}</div>
+        ${lines.countLine ? `<div class="hint">${esc(lines.countLine)}</div>` : ""}
+        <div class="notice">${esc(lines.disclaimer)}</div>`;
     }
     case "stkReportNumber":
       return `${header("header.report")}${entryBlock({ hint: t("report.numberHint"), notice: s.notice })}`;

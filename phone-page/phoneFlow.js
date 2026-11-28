@@ -492,8 +492,7 @@ export class PhoneFlow {
         } else {
           this.state.checkResult = {
             result: "ERROR",
-            message: t(result.error === "timeout" ? "error.timeout" : "check.error"),
-            disclaimer: t("check.disclaimer"),
+            reports_count: 0,
           };
         }
         return this.set("stkCheckResult");

@@ -27,6 +27,6 @@ test.describe("Walɔ phone-page @mock", () => {
       .toBe("stkMomo");
 
     const header = await page.locator("#lcd_body .scr-head").innerText();
-    expect(header).toMatch(/Wal/i);
+    expect(header).toBe("Walɔ");
   });
 });
