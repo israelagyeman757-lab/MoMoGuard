@@ -51,6 +51,8 @@ test("buildReportPayload trims fields, fixes trick, and carries the reporter id"
     description: "Asked for my MoMo PIN.",
     community: "Madina",
     incident_time: "this morning",
+    channel: "innovate_reps",
+    request_type: "other",
   });
 });
 
