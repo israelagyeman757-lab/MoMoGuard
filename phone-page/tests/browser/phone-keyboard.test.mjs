@@ -54,7 +54,7 @@ test("keyboard updates LCD quickly and supports D-pad menu scroll", async () => 
     const selected = await page.locator(".inbox-message.is-selected .inbox-sender").first().textContent();
     assert.ok(selected?.length, "inbox selection should move with arrow keys");
 
-    await page.screenshot({ path: "/opt/cursor/artifacts/phone-nokia-layout.png", fullPage: true });
+    await page.screenshot({ path: "/opt/cursor/artifacts/phone-mtn-layout.png", fullPage: true });
   } finally {
     await browser.close();
     server.kill("SIGTERM");

@@ -3,12 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#1a1a1a">
+  <meta name="theme-color" content="#c9a96e">
   <meta name="description" content="MoMoGuard feature phone">
   <title>MoMoGuard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/phone-page/styles.css">
 </head>
 <body>
@@ -18,65 +15,77 @@
     <div class="phone-scale" id="phone_scale">
       <div class="phone-shadow" aria-hidden="true"></div>
       <div class="phone" id="phone">
-        <div class="phone-earpiece" aria-hidden="true"></div>
+        <header class="phone-cap">
+          <div class="phone-earpiece" aria-hidden="true"></div>
+          <span class="phone-camera" aria-hidden="true"></span>
+        </header>
 
         <div class="screen-bezel">
           <div class="phone-screen" id="phone_screen">
             <div class="screen-status" aria-hidden="true">
               <span class="network" aria-label="Signal">
-                <svg class="icon icon-signal" viewBox="0 0 16 10" width="16" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M1 9V7M4.5 9V5M8 9V3M11.5 9V1"/></svg>
+                <svg class="icon" viewBox="0 0 16 10" width="15" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M1 9V7M4.5 9V5M8 9V3M11.5 9V1"/></svg>
               </span>
               <span class="status-carrier">MTN</span>
               <span class="status-stk" id="status_stk" hidden aria-label="STK message">
-                <svg class="icon icon-envelope" viewBox="0 0 12 10" width="12" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M1 2h10v6H1V2zm0 0 5 4 5-4"/></svg>
+                <svg class="icon" viewBox="0 0 12 10" width="12" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M1 2h10v6H1V2zm0 0 5 4 5-4"/></svg>
               </span>
               <span id="screen_time">09:41</span>
               <span class="battery" aria-label="Battery">
-                <svg class="icon icon-battery" viewBox="0 0 18 9" width="18" height="9" aria-hidden="true"><rect x="1" y="1" width="14" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M16 3v3h1.5V3H16z" fill="currentColor"/><rect x="2.5" y="2.5" width="10" height="4" fill="currentColor"/></svg>
+                <svg class="icon" viewBox="0 0 18 9" width="17" height="9" aria-hidden="true"><rect x="1" y="1" width="14" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M16 3v3h1.5V3H16z" fill="currentColor"/><rect x="2.5" y="2.5" width="10" height="4" fill="currentColor"/></svg>
               </span>
             </div>
             <div class="screen-body">
               <div class="screen-content" id="screen_content" aria-live="polite"></div>
-              <div class="screen-soft-bar" aria-label="Soft keys">
-                <button type="button" class="lcd-soft lcd-soft-left key" data-key="ok" id="soft_left" aria-label="Left soft key">
-                  <span class="screen-soft-left" id="screen_soft_left"></span>
-                </button>
-                <button type="button" class="lcd-soft lcd-soft-right key" data-key="softRight" id="soft_right" aria-label="Right soft key">
-                  <span class="screen-soft-right" id="screen_soft_right"></span>
-                </button>
-              </div>
+              <footer class="screen-soft-bar" aria-hidden="true">
+                <span class="screen-soft-left" id="screen_soft_left"></span>
+                <span class="screen-soft-right" id="screen_soft_right"></span>
+              </footer>
             </div>
           </div>
         </div>
 
-        <div class="phone-controls">
-          <button class="key utility-key call-key" id="key_call" data-key="call" aria-label="Call">
-            <svg class="icon icon-handset" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6.2 2.8 8.5 5.9l-2.8 2.5c1.4 2.6 3.5 4.7 6.1 6.1l2.5-2.8 3.1 2.3-.9 3.2c-.3.9-1.2 1.4-2.1 1.2-7.2-1.4-12.8-7-14.2-14.2-.1-.9.4-1.8 1.2-2.1l3.2-.9Z"/></svg>
-          </button>
-
-          <div class="navigation" aria-label="Navigation">
-            <button class="key nav-key nav-up" id="key_up" data-key="up" aria-label="Up">
-              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 10 10 7 13 10"/></svg>
-            </button>
-            <button class="key nav-key nav-left" id="key_left" data-key="left" aria-label="Left">
-              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M10 7 7 10 10 13"/></svg>
-            </button>
-            <button class="key ok-key" id="key_ok" data-key="ok" aria-label="OK"><span>OK</span></button>
-            <button class="key nav-key nav-right" id="key_right" data-key="right" aria-label="Right">
-              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 7 10 10 7 13"/></svg>
-            </button>
-            <button class="key nav-key nav-down" id="key_down" data-key="down" aria-label="Down">
-              <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 7 10 10 13 7"/></svg>
-            </button>
-          </div>
-
-          <button class="key utility-key end-key" id="key_end" data-key="end" aria-label="End">
-            <svg class="icon icon-hangup" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" style="transform:rotate(135deg)"><path fill="currentColor" d="M6.2 2.8 8.5 5.9l-2.8 2.5c1.4 2.6 3.5 4.7 6.1 6.1l2.5-2.8 3.1 2.3-.9 3.2c-.3.9-1.2 1.4-2.1 1.2-7.2-1.4-12.8-7-14.2-14.2-.1-.9.4-1.8 1.2-2.1l3.2-.9Z"/></svg>
-          </button>
+        <div class="mtn-badge" aria-hidden="true">
+          <svg viewBox="0 0 88 32" width="72" height="26" aria-hidden="true">
+            <ellipse cx="44" cy="16" rx="42" ry="14" fill="#121212" stroke="#FFCC00" stroke-width="2"/>
+            <text x="44" y="20" text-anchor="middle" fill="#FFCC00" font-family="Arial,sans-serif" font-size="11" font-weight="700">MTN</text>
+          </svg>
         </div>
 
+        <section class="nav-cluster">
+          <div class="phone-controls">
+            <div class="action-stack">
+              <button type="button" class="key hw-soft" data-key="ok" id="soft_left" aria-label="Left soft key"></button>
+              <button class="key action-key call-key" id="key_call" data-key="call" aria-label="Call">
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.2 2.8 8.5 5.9l-2.8 2.5c1.4 2.6 3.5 4.7 6.1 6.1l2.5-2.8 3.1 2.3-.9 3.2c-.3.9-1.2 1.4-2.1 1.2C9.4 18.1 2.9 11.6 2 3.4c-.1-.8.4-1.6 1.2-1.8l2-.8Z"/></svg>
+              </button>
+            </div>
+            <div class="navigation" aria-label="Navigation">
+              <button class="key nav-key nav-up" id="key_up" data-key="up" aria-label="Up">
+                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M3 10 8 5l5 5"/></svg>
+              </button>
+              <button class="key nav-key nav-left" id="key_left" data-key="left" aria-label="Left">
+                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10 3 5 8l5 5"/></svg>
+              </button>
+              <button class="key ok-key" id="key_ok" data-key="ok" aria-label="OK"><span>OK</span></button>
+              <button class="key nav-key nav-right" id="key_right" data-key="right" aria-label="Right">
+                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 3l5 5-5 5"/></svg>
+              </button>
+              <button class="key nav-key nav-down" id="key_down" data-key="down" aria-label="Down">
+                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M3 6l5 5 5-5"/></svg>
+              </button>
+            </div>
+            <div class="action-stack">
+              <button type="button" class="key hw-soft" data-key="softRight" id="soft_right" aria-label="Right soft key"></button>
+              <button class="key action-key end-key" id="key_end" data-key="end" aria-label="End">
+                <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" style="transform:rotate(135deg)"><path fill="currentColor" d="M6.2 2.8 8.5 5.9l-2.8 2.5c1.4 2.6 3.5 4.7 6.1 6.1l2.5-2.8 3.1 2.3-.9 3.2c-.3.9-1.2 1.4-2.1 1.2C9.4 18.1 2.9 11.6 2 3.4c-.1-.8.4-1.6 1.2-1.8l2-.8Z"/></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
         <div class="keypad" aria-label="Keypad">
-          <button class="key number-key" id="key_1" data-key="1"><strong>1</strong><small></small></button>
+          <button class="key number-key" id="key_1" data-key="1"><strong>1</strong><small class="key-alt" aria-hidden="true"><svg viewBox="0 0 14 10" width="11" height="8"><circle cx="4" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path fill="none" stroke="currentColor" stroke-width="1.2" d="M7 3h5v4H7z"/></svg></small></button>
           <button class="key number-key" id="key_2" data-key="2"><strong>2</strong><small>abc</small></button>
           <button class="key number-key" id="key_3" data-key="3"><strong>3</strong><small>def</small></button>
           <button class="key number-key" id="key_4" data-key="4"><strong>4</strong><small>ghi</small></button>
@@ -85,13 +94,15 @@
           <button class="key number-key" id="key_7" data-key="7"><strong>7</strong><small>pqrs</small></button>
           <button class="key number-key" id="key_8" data-key="8"><strong>8</strong><small>tuv</small></button>
           <button class="key number-key" id="key_9" data-key="9"><strong>9</strong><small>wxyz</small></button>
-          <button class="key number-key" id="key_star" data-key="*"><strong>*</strong><small class="key-glyph"><svg viewBox="0 0 12 10" width="10" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M6 2v4M4 5h4"/></svg></small></button>
-          <button class="key number-key" id="key_0" data-key="0"><strong>0</strong><small class="key-glyph"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path stroke="currentColor" stroke-width="1.8" d="M6 2v8M2 6h8"/></svg></small></button>
-          <button class="key number-key" id="key_hash" data-key="#"><strong>#</strong><small class="key-glyph"><svg viewBox="0 0 14 6" width="12" height="6" aria-hidden="true"><rect x="1" y="2" width="12" height="2" rx=".5" fill="currentColor"/></svg></small></button>
+          <button class="key number-key" id="key_star" data-key="*"><strong>*</strong><small class="key-alt"><svg viewBox="0 0 12 12" width="10" height="10"><path stroke="currentColor" stroke-width="1.6" d="M6 2v8M2 6h8"/></svg></small></button>
+          <button class="key number-key" id="key_0" data-key="0"><strong>0</strong><small class="key-alt"><svg viewBox="0 0 14 6" width="12" height="6"><rect x="1" y="2" width="12" height="2" rx=".5" fill="currentColor"/></svg></small></button>
+          <button class="key number-key" id="key_hash" data-key="#"><strong>#</strong><small class="key-alt"><svg viewBox="0 0 12 10" width="10" height="10"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M6 2v4M4 5h4"/></svg></small></button>
         </div>
+
+        <div class="phone-mic" aria-hidden="true"></div>
       </div>
 
-      <button type="button" id="demo_stk_push" class="demo-stk-button demo-stk-button--inline">STK demo</button>
+      <button type="button" id="demo_stk_push" class="demo-stk-button">STK demo</button>
     </div>
 
     <details class="keyboard-legend">
