@@ -66,6 +66,25 @@ for (const viewport of [
       assert.ok(centerOffsetPx < 2, `D-pad vs phone center offset ${centerOffsetPx}px`);
       assert.ok(callEndBalancePx < 2, `call/end symmetry imbalance ${callEndBalancePx}px`);
 
+      const insets = await page.evaluate(() => {
+        const phone = document.querySelector("#phone");
+        const call = document.querySelector("#key_call");
+        const end = document.querySelector("#key_end");
+        const p = phone.getBoundingClientRect();
+        const c = call.getBoundingClientRect();
+        const e = end.getBoundingClientRect();
+        const margin = 10;
+        return {
+          callLeftInset: c.left - p.left,
+          callRightInset: p.right - c.right,
+          endLeftInset: e.left - p.left,
+          endRightInset: p.right - e.right,
+        };
+      });
+      const edgeMargin = 10;
+      assert.ok(insets.callLeftInset >= edgeMargin - 0.5, `call left inset ${insets.callLeftInset}px`);
+      assert.ok(insets.endRightInset >= edgeMargin - 0.5, `end right inset ${insets.endRightInset}px`);
+
       await page.screenshot({ path: `/opt/cursor/artifacts/${viewport.shot}`, fullPage: false });
     } finally {
       await browser.close();

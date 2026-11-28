@@ -29,6 +29,29 @@ function escapeHtml(value) {
   })[c]);
 }
 
+function formatHomeDate(d = new Date()) {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+  }).format(d);
+}
+
+function homeScreenTemplate() {
+  const s = flow.state;
+  const time = timeLabel?.textContent || "00:00";
+  const isLock = s.screen === "lock";
+  const hint = isLock
+    ? `<p class="screen-small home-hint">${s.lockAwaitStar ? "Press *" : "Unlock to continue"}</p>`
+    : "";
+  return `<div class="home-screen">
+    <p class="home-carrier">MTN Ghana</p>
+    <p class="home-clock">${escapeHtml(time)}</p>
+    <p class="home-date">${escapeHtml(formatHomeDate())}</p>
+    ${hint}
+  </div>`;
+}
+
 function menuListHtml(items, index) {
   return `<ul class="stk-list" role="listbox">${items.map((item, i) => {
     const label = typeof item === "string" ? item : item.label;
@@ -53,9 +76,8 @@ function screenTemplate() {
     case "boot":
       return `<div class="boot-screen"><div class="boot-logo">MTN</div><p class="screen-small">Starting…</p></div>`;
     case "lock":
-      return `<div class="lock-screen"><p class="stk-hd">Locked</p><p class="screen-small">${s.lockAwaitStar ? "Press *" : "Unlock to continue"}</p></div>`;
     case "idle":
-      return `<div class="idle-date">${escapeHtml(timeLabel.textContent)}</div>`;
+      return homeScreenTemplate();
     case "stkPopup": {
       const popup = s.stkPopup || {};
       return `<div class="stk-popup" role="dialog"><p class="stk-hd">MoMoGuard</p><p class="screen-copy">${escapeHtml(popup.text)}</p>
@@ -181,15 +203,17 @@ function patchInputFields() {
 }
 
 function patchLockCopy() {
-  const hint = screenContent.querySelector(".lock-screen .screen-small");
+  const hint = screenContent.querySelector(".home-hint");
   if (hint) {
     hint.textContent = flow.state.lockAwaitStar ? "Press *" : "Unlock to continue";
   }
 }
 
-function patchIdleClock() {
-  const idle = screenContent.querySelector(".idle-date");
-  if (idle) idle.textContent = timeLabel.textContent;
+function patchHomeClock() {
+  const clock = screenContent.querySelector(".home-clock");
+  if (clock) clock.textContent = timeLabel.textContent;
+  const date = screenContent.querySelector(".home-date");
+  if (date) date.textContent = formatHomeDate();
 }
 
 function renderSoftLabels() {
@@ -226,13 +250,9 @@ function render({ force = false } = {}) {
       renderSoftLabels();
       return;
     }
-    if (screen === "lock") {
-      patchLockCopy();
-      renderSoftLabels();
-      return;
-    }
-    if (screen === "idle") {
-      patchIdleClock();
+    if (screen === "idle" || screen === "lock") {
+      patchHomeClock();
+      if (screen === "lock") patchLockCopy();
       renderSoftLabels();
       return;
     }
@@ -249,7 +269,7 @@ function render({ force = false } = {}) {
 
 function updateTime() {
   timeLabel.textContent = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
-  if (flow.state.screen === "idle") patchIdleClock();
+  if (flow.state.screen === "idle" || flow.state.screen === "lock") patchHomeClock();
 }
 
 function flashHighlight(selector) {
