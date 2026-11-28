@@ -246,33 +246,74 @@ function formatHoldUntil(iso) {
   return `${hhmm} (${mins}m left)`;
 }
 
+const HOLD_REASON_EN = {
+  new_number_pair: "First payment from this number to you",
+  flagged_high: "Number reported to Walɔ",
+  flagged_medium: "Number under review in Walɔ",
+  amount_above_500_ghs: "Large amount (over GHS 500)",
+  recipient_wallet_under_7_days: "Your wallet was opened recently",
+  many_distinct_payers_24h: "Many different senders in the last 24 hours",
+  recent_sim_swap: "Recent SIM swap on sender line",
+  funds_held: "Funds temporarily held by Walɔ",
+};
+
+function holdReasonText(h) {
+  if (h.reason_labels?.en) return h.reason_labels.en;
+  return HOLD_REASON_EN.funds_held;
+}
+
+function riskChip(level) {
+  const key = (level || "LOW").toUpperCase();
+  const cls = { HIGH: "chip-risk-high", MEDIUM: "chip-risk-medium", LOW: "chip-risk-low" }[key] || "chip-risk-low";
+  return `<span class="chip ${cls}">${key}</span>`;
+}
+
+function holdStatusChip(status) {
+  const st = (status || "held").toLowerCase();
+  const label = {
+    held: "Held",
+    extended: "Held",
+    released: "Released",
+    reversed: "Reversed",
+  }[st] || st;
+  return `<span class="chip chip-hold-${st}">${label}</span>`;
+}
+
 function renderHolds(holds) {
   const body = document.getElementById("holds_body");
   const empty = document.getElementById("holds_empty");
+  const table = document.getElementById("holds_table");
   if (!holds.length) {
     body.innerHTML = "";
     empty.hidden = false;
+    if (table) table.hidden = true;
     return;
   }
   empty.hidden = true;
-  body.innerHTML = holds.map(h => `
+  if (table) table.hidden = false;
+  body.innerHTML = holds.map(h => {
+    const st = (h.status || "held").toLowerCase();
+    const active = st === "held" || st === "extended";
+    const actions = active
+      ? `<div class="row-actions">
+          <button type="button" class="btn ghost hold-release" data-id="${h.id}">Release</button>
+          <button type="button" class="btn ghost hold-extend" data-id="${h.id}">Extend</button>
+          <button type="button" class="btn ghost hold-reverse" data-id="${h.id}">Reverse</button>
+        </div>`
+      : "—";
+    return `
     <tr data-id="${h.id}">
       <td>#${h.id}</td>
       <td>${h.payer_masked || "—"}</td>
       <td>${h.payee_masked || "—"}</td>
       <td>GHS ${Number(h.amount).toFixed(2)}</td>
-      <td>${h.risk_level}</td>
-      <td>${(h.reason_labels && h.reason_labels.en) || "—"}</td>
+      <td>${riskChip(h.risk_level)}</td>
+      <td>${holdReasonText(h)}</td>
       <td>${formatHoldUntil(h.release_at)}</td>
-      <td>${h.status || "held"}</td>
-      <td>
-        <div class="row-actions">
-          <button type="button" class="btn ghost hold-release" data-id="${h.id}">Release</button>
-          <button type="button" class="btn ghost hold-extend" data-id="${h.id}">Extend</button>
-          <button type="button" class="btn ghost hold-reverse" data-id="${h.id}">Reverse</button>
-        </div>
-      </td>
-    </tr>`).join("");
+      <td>${holdStatusChip(h.status)}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join("");
 
   async function act(id, path, body = {}) {
     try {
@@ -294,7 +335,7 @@ function renderHolds(holds) {
   });
 }
 
-async function loadHolds(status = "held") {
+async function loadHolds(status = "recent") {
   setLoading("holds_loading", true);
   try {
     const data = await api(`/holds?status=${encodeURIComponent(status)}`);

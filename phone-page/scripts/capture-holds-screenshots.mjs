@@ -27,6 +27,8 @@ async function main() {
     stdio: "ignore",
   });
   await sleep(1800);
+  await fetch("http://127.0.0.1:8765/reset-demo", { method: "POST" });
+  await sleep(400);
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
@@ -65,6 +67,9 @@ async function main() {
   await sleep(900);
   await page.screenshot({ path: path.join(mediaDir, "02-phone-withdraw-blocked.png") });
 
+  await fetch("http://127.0.0.1:8765/reset-demo", { method: "POST" });
+  await sleep(400);
+
   const consolePage = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const apiBase = "http://127.0.0.1:8765";
   await consolePage.goto(
@@ -77,6 +82,7 @@ async function main() {
     { timeout: 15000 },
   );
   await consolePage.click('button[data-section="holds"]');
+  await sleep(300);
   await consolePage.click("#load_holds");
   await consolePage.waitForFunction(
     () => document.querySelectorAll("#holds_body tr").length >= 2,
@@ -89,9 +95,14 @@ async function main() {
   const firstReverse = await consolePage.$("#holds_body .hold-reverse");
   if (firstReverse) await firstReverse.click();
   await sleep(700);
-  await consolePage.evaluate(() => window.loadHolds("all"));
+  await consolePage.evaluate(() => window.loadHolds("recent"));
+  await consolePage.waitForFunction(
+    () => document.querySelector(".chip-hold-reversed") && document.querySelectorAll("#holds_body tr").length >= 2,
+    null,
+    { timeout: 8000 },
+  );
   await sleep(400);
-  await consolePage.screenshot({ path: path.join(mediaDir, "04-console-hold-reversed.png") });
+  await consolePage.screenshot({ path: path.join(mediaDir, "04-console-after-reverse.png") });
 
   await browser.close();
   api.kill();

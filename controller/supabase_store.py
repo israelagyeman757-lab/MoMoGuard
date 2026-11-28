@@ -660,6 +660,33 @@ class SupabaseStore:
         row = self._rest.select_one("holds", id=f"eq.{hold_id}")
         return self._hold_row(row) if row else None
 
+    def list_holds_recent(self, *, hours: int = 24) -> list[dict]:
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=hours)
+        ).replace(tzinfo=None).isoformat(timespec="seconds")
+        rows = self._rest.select(
+            "holds",
+            filters={"created_at": f"gte.{cutoff}"},
+            order="created_at.desc",
+        )
+        return [self._hold_row(r) for r in rows]
+
+    def delete_holds_for_pairs(self, pairs: list[tuple[str, str]]) -> None:
+        for payer, payee in pairs:
+            self._rest.delete_filtered(
+                "holds",
+                {
+                    "payer": f"eq.{quote(normalize_phone(payer), safe='')}",
+                    "payee": f"eq.{quote(normalize_phone(payee), safe='')}",
+                },
+            )
+
+    def replace_demo_holds(self, specs: list[dict[str, Any]]) -> None:
+        pairs = [(s["payer"], s["payee"]) for s in specs]
+        self.delete_holds_for_pairs(pairs)
+        for spec in specs:
+            self.insert_hold(spec)
+
     def list_holds(self, *, status: str | None = None, payee: str | None = None) -> list[dict]:
         filters: dict[str, str] = {}
         if status:

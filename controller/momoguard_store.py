@@ -712,6 +712,30 @@ class MoMoGuardStore:
         row = self._conn.execute("SELECT * FROM holds WHERE id=?", (hold_id,)).fetchone()
         return self._hold_row(row) if row else None
 
+    def list_holds_recent(self, *, hours: int = 24) -> list[dict]:
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=hours)
+        ).replace(tzinfo=None).isoformat(timespec="seconds")
+        rows = self._conn.execute(
+            "SELECT * FROM holds WHERE created_at >= ? ORDER BY created_at DESC",
+            (cutoff,),
+        ).fetchall()
+        return [self._hold_row(r) for r in rows]
+
+    def delete_holds_for_pairs(self, pairs: list[tuple[str, str]]) -> None:
+        for payer, payee in pairs:
+            self._conn.execute(
+                "DELETE FROM holds WHERE payer=? AND payee=?",
+                (normalize_phone(payer), normalize_phone(payee)),
+            )
+        self._conn.commit()
+
+    def replace_demo_holds(self, specs: list[dict[str, Any]]) -> None:
+        pairs = [(s["payer"], s["payee"]) for s in specs]
+        self.delete_holds_for_pairs(pairs)
+        for spec in specs:
+            self.insert_hold(spec)
+
     def list_holds(self, *, status: str | None = None, payee: str | None = None) -> list[dict]:
         clauses: list[str] = []
         params: list[Any] = []

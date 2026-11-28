@@ -114,9 +114,14 @@ class HoldsService:
             "amount": active.get("amount"),
         }
 
-    def list_holds(self, *, status: str | None = "held") -> list[dict]:
+    def list_holds(self, *, status: str | None = "held", recent_hours: int | None = None) -> list[dict]:
         _expire_lazy(self.db)
-        rows = self.db.list_holds(status=status)
+        if recent_hours is not None:
+            rows = self.db.list_holds_recent(hours=recent_hours)
+        elif status is None:
+            rows = self.db.list_holds()
+        else:
+            rows = self.db.list_holds(status=status)
         return [_mask_hold(r) for r in rows]
 
     def release(self, hold_id: int, rep_id: str | None) -> dict:
@@ -170,7 +175,10 @@ def register_holds_routes(app_router: APIRouter, db: Any) -> None:
         status: str | None = "held",
     ):
         mod_auth(authorization)
-        st = None if (status or "").lower() == "all" else (status or "held")
+        st_raw = (status or "held").lower()
+        if st_raw == "recent":
+            return {"holds": svc.list_holds(recent_hours=24)}
+        st = None if st_raw == "all" else (status or "held")
         return {"holds": svc.list_holds(status=st)}
 
     @app_router.post("/holds/{hold_id}/release")

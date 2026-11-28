@@ -100,40 +100,47 @@ def seed_demo(store: Any, *, reset: bool = True) -> None:
 
 DEMO_WALLET_MSISDN = "0244111222"
 
+DEMO_HOLD_SPECS = (
+    {
+        "payer": "0245000111",
+        "payee": DEMO_WALLET_MSISDN,
+        "amount": 100,
+        "risk_level": "MEDIUM",
+        "reasons": ["new_number_pair"],
+        "hold_minutes": 30,
+    },
+    {
+        "payer": "0244888100",
+        "payee": DEMO_SCAM_NUMBER,
+        "amount": 350,
+        "risk_level": "HIGH",
+        "reasons": ["flagged_high"],
+        "hold_minutes": 1440,
+    },
+)
+
 
 def seed_demo_holds(store: Any) -> None:
-    """Two active demo holds for console screenshots: 30m new pair + 24h flagged."""
+    """Exactly two distinct demo holds; idempotent via replace-by-demo-pair."""
     if not hasattr(store, "insert_hold"):
         return
-    active = store.list_holds(status="held")
-    if len(active) >= 2:
+    if hasattr(store, "replace_demo_holds"):
+        store.replace_demo_holds(DEMO_HOLD_SPECS)
         return
-    store.insert_hold(
-        {
-            "payer": "0245000111",
-            "payee": DEMO_WALLET_MSISDN,
-            "amount": 100,
-            "risk_level": "MEDIUM",
-            "reasons": ["new_number_pair"],
-            "hold_minutes": 30,
-        }
-    )
-    store.insert_hold(
-        {
-            "payer": "0244888100",
-            "payee": DEMO_SCAM_NUMBER,
-            "amount": 350,
-            "risk_level": "HIGH",
-            "reasons": ["flagged_high"],
-            "hold_minutes": 1440,
-        }
-    )
+    pairs = [(s["payer"], s["payee"]) for s in DEMO_HOLD_SPECS]
+    if hasattr(store, "delete_holds_for_pairs"):
+        store.delete_holds_for_pairs(pairs)
+    for spec in DEMO_HOLD_SPECS:
+        store.insert_hold(spec)
 
 
 def ensure_demo_holds(store: Any) -> None:
-    if not hasattr(store, "list_holds"):
+    if not hasattr(store, "insert_hold"):
         return
-    if len(store.list_holds(status="held")) >= 2:
+    pairs = {(s["payer"], s["payee"]) for s in DEMO_HOLD_SPECS}
+    held = store.list_holds(status="held") if hasattr(store, "list_holds") else []
+    matching = [h for h in held if (h.get("payer"), h.get("payee")) in pairs]
+    if len(matching) == 2:
         return
     seed_demo_holds(store)
 

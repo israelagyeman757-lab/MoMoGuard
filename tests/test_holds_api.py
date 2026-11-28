@@ -101,10 +101,23 @@ def test_rep_list_and_release_masked(client):
 def test_seed_demo_holds_present(client):
     listed = client.get("/holds", headers=MOD)
     holds = listed.json()["holds"]
-    assert len(holds) >= 2
+    assert len(holds) == 2
     mins = {h["hold_minutes"] for h in holds}
-    assert 30 in mins
-    assert 1440 in mins
+    assert mins == {30, 1440}
+    for h in holds:
+        assert h["reason_labels"]["en"]
+        assert "new_number_pair" not in h["reason_labels"]["en"]
+
+
+def test_holds_recent_after_reverse(client):
+    listed = client.get("/holds", headers=MOD).json()["holds"]
+    hold_id = listed[0]["id"]
+    client.post(f"/holds/{hold_id}/reverse", headers=MOD)
+    recent = client.get("/holds?status=recent", headers=MOD).json()["holds"]
+    assert len(recent) >= 2
+    statuses = {h["status"] for h in recent}
+    assert "reversed" in statuses
+    assert "held" in statuses
 
 
 def test_flagged_payee_24h(client):
