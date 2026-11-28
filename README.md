@@ -4,7 +4,7 @@ Community-powered mobile money fraud intelligence, education, and early-warning 
 
 ## What works
 
-- Community report submit and moderation (SQLite default; optional Supabase env for future persistence)
+- Community report submit and moderation (SQLite default locally/CI; **Supabase** when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set)
 - Number lookup against **MoMoGuard DB only** (no external Glance/MTN)
 - Published warnings in USSD simulator and training UI
 - Rule-based training with pre/post 10-question assessments, scores, and recommendations
@@ -35,6 +35,6 @@ python3 -m pytest tests/ -v
 
 ## Deploy (Vercel)
 
-Single project: `api/index.py` + `vercel.json`. Set `COMMUNITY_SQLITE_PATH` or Supabase vars for durable community data on serverless.
+Single project: `api/index.py` + `vercel.json`. For durable data on Vercel, set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then apply `supabase/migrations/20261128120000_blueprint.sql` on the Walo Supabase project. Never commit keys.
 
 See [docs/blueprint-hackathon.md](docs/blueprint-hackathon.md) for full scope.

@@ -9,14 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from controller.auth import require_moderator
-from controller.momoguard_store import MoMoGuardStore, validate_phone, normalize_phone
+from controller.momoguard_store import validate_phone, normalize_phone
 from controller.patterns import find_similar_reports, lookup_result
-from controller.seed import seed_demo
+from controller.seed import ensure_demo_seed, seed_demo
 from controller.store_factory import create_store
 from controller.ussd import CommunityUssdRouter
 
 
-def create_app(store: MoMoGuardStore | None = None, *, seed: bool = True) -> FastAPI:
+def create_app(store=None, *, seed: bool = True) -> FastAPI:
     app = FastAPI(title="MoMoGuard Community", version="1.0.0")
     app.add_middleware(
         CORSMiddleware,
@@ -25,8 +25,11 @@ def create_app(store: MoMoGuardStore | None = None, *, seed: bool = True) -> Fas
         allow_headers=["*"],
     )
     db = store or create_store()
-    if seed and db.backend == "sqlite":
-        seed_demo(db)
+    if seed:
+        if db.backend == "sqlite":
+            seed_demo(db)
+        else:
+            ensure_demo_seed(db)
 
     async def lookup_number(phone: str) -> dict:
         n = normalize_phone(phone)
