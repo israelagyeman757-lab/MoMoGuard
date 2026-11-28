@@ -1,37 +1,17 @@
 """Rancard Glance integration: reverse number lookup / fraud-intelligence check.
 
-STATUS: STUB — no live HTTP call is made by this module.
-
-Rancard's own site confirms Glance is a real product (checked 2026-11-28):
-- https://www.rancard.com/products/glance/ — "Real-Time Number Lookup &
-  Verification: check the threat status, risk level, and history of any
-  mobile number instantly", plus centralised threat reporting and "API
-  Integration... through well-structured API documentation".
-- https://www.rancard.com/developers/ — directs integrators to "work with
-  the Rancard team to receive the product-specific credentials and reference
-  documentation you need." No public endpoint paths, request/response JSON
-  shapes, or auth header format were published at the above URLs as of this
-  build.
-
-Because the actual wire contract isn't public, this module does not attempt
-to guess it. It exposes a stable `reverse_lookup(number)` interface the rest
-of the app can call today (new Reverse Number Lookup UI, in both the
-Innovate Reps console and the feature-phone SIM Toolkit), backed by a small,
-clearly-labelled canned dataset — not a real Glance response. `_live_lookup`
-is where a real client goes once Rancard's actual reference docs are
-available; nothing else in the app should need to change when that happens.
-
-RANCARD_GLANCE_MODE defaults to "stub". Setting it to "live" raises
-immediately with a clear message — do not flip it until `_live_lookup` is
-actually implemented against confirmed Rancard documentation.
+Central backend for Innovate Reps and SIM Toolkit reverse lookup (PRD §9).
+See docs/rancard-glance-integration.md for what Rancard must supply before
+a non-stub live client is possible.
 """
 
+import json
 import os
+import urllib.error
+import urllib.parse
+import urllib.request
 
-# Demo dataset only — intentionally the same numbers CONTRACT.md's "Demo
-# accounts" table and controller/plugs/glance_plug.py already use, so a
-# Reverse Number Lookup and the existing community-reports demo tell a
-# consistent story without inventing a second cast of numbers.
+# Demo dataset — same numbers as CONTRACT.md and GlancePlug canned reputation.
 _CANNED_LOOKUP = {
     "0240000009": {
         "status": "flagged", "risk": "high",
@@ -57,18 +37,21 @@ _CANNED_LOOKUP = {
     },
 }
 
+_LIVE_NOTE = (
+    "Live Glance requires RANCARD_GLANCE_BASE_URL and RANCARD_GLANCE_LOOKUP_PATH "
+    "from Rancard's official API documentation (see docs/rancard-glance-integration.md). "
+    "This response is stub data, not a real Glance call."
+)
+
 
 class RancardGlancePlug:
     source = "rancard_stub"
 
     def __init__(self):
-        # Read lazily so .env changes during a dev session still take effect
-        # without re-importing the module.
         self.reset()
 
     def reset(self) -> None:
-        pass  # stateless stub; kept for parity with the other plugs'
-        # /reset-demo contract, in case a future real client caches anything.
+        pass
 
     @property
     def mode(self) -> str:
@@ -92,13 +75,65 @@ class RancardGlancePlug:
         }
 
     def _live_lookup(self, number: str) -> dict:
-        raise NotImplementedError(
-            "RANCARD_GLANCE_MODE=live was set, but no real Rancard Glance "
-            "API client is implemented yet. Rancard's public pages confirm "
-            "Glance's capabilities (number lookup/verification, threat "
-            "status, risk level, history) but not its request/response "
-            "schema, endpoint paths, or auth header format -- get those "
-            "directly from Rancard, then implement this method against them "
-            "before using live mode. See the module docstring for sources "
-            "checked and what was/was not found."
-        )
+        base = (os.environ.get("RANCARD_GLANCE_BASE_URL") or "").rstrip("/")
+        path = (os.environ.get("RANCARD_GLANCE_LOOKUP_PATH") or "").strip()
+        api_key = os.environ.get("RANCARD_GLANCE_API_KEY") or ""
+        if not base or not path or not path.startswith("/"):
+            stub = self._stub_lookup(number)
+            return {**stub, "live_attempted": False, "live_note": _LIVE_NOTE}
+
+        url = base + path
+        if "{number}" in url:
+            url = url.replace("{number}", urllib.parse.quote(number, safe=""))
+        elif "?" in url:
+            url = f"{url}&number={urllib.parse.quote(number, safe='')}"
+        else:
+            url = f"{url}?number={urllib.parse.quote(number, safe='')}"
+
+        headers = {"Accept": "application/json"}
+        if api_key:
+            auth_style = os.environ.get("RANCARD_GLANCE_AUTH_STYLE", "bearer").lower()
+            if auth_style == "x-api-key":
+                headers["X-Api-Key"] = api_key
+            else:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+        timeout_s = float(os.environ.get("RANCARD_GLANCE_TIMEOUT_S", "8"))
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, ValueError):
+            stub = self._stub_lookup(number)
+            stub["status"] = "error"
+            stub["risk"] = "unavailable"
+            stub["message"] = (
+                "Glance could not be reached. That is not proof it is safe or unsafe."
+            )
+            return {**stub, "live_attempted": True, "live_note": _LIVE_NOTE}
+
+        # Until Rancard documents the schema, pass through only if caller configured
+        # RANCARD_GLANCE_NORMALIZE=json mapping env — otherwise stub fallback.
+        normalize = os.environ.get("RANCARD_GLANCE_NORMALIZE", "").strip().lower()
+        if normalize not in ("passthrough", "1", "true", "yes"):
+            stub = self._stub_lookup(number)
+            return {
+                **stub,
+                "live_attempted": True,
+                "live_note": (
+                    "A live HTTP call succeeded but response normalization is not "
+                    "configured. Set RANCARD_GLANCE_NORMALIZE=passthrough only after "
+                    "Rancard confirms field mapping — until then stub data is shown."
+                ),
+            }
+
+        return {
+            "number": number,
+            "status": raw.get("status", "no_results"),
+            "risk": raw.get("risk", "unknown"),
+            "history": raw.get("history") or [],
+            "message": raw.get("message") or "Lookup completed.",
+            "source": "rancard_live",
+            "live_attempted": True,
+            "raw_fields_present": sorted(raw.keys()),
+        }

@@ -2,19 +2,26 @@ import { CONFIG } from "./config.js";
 import { PhoneFlow } from "./phoneFlow.js";
 import * as controller from "./services/controllerAdapter.js";
 import { createDemoBridge } from "./services/demoBridge.js";
+import { loadLocale, t as translate, currentLocale } from "./i18n/i18n.js";
 
 const flow = new PhoneFlow({ mode: CONFIG.MODE });
 const screenContent = document.querySelector("#screen_content");
 const phone = document.querySelector("#phone");
 const timeLabel = document.querySelector("#screen_time");
 let pendingTimer = null;
-let translations = {
-  mainTitle: "Welcome to MoMoGuard",
-  sendMoney: "Send Money",
-  reportScam: "Report a Scam",
-  scamAlerts: "Scam Alerts",
-  language: "Language",
-};
+let translations = {};
+
+function t(key, fallback = "") {
+  return translate(key, translations[key] || fallback);
+}
+
+export function setPhoneLocale(locale) {
+  flow.state.language = locale === "tw" ? "tw" : "en";
+  return loadLocale(flow.state.language).then(catalog => {
+    translations = { ...catalog };
+    render();
+  });
+}
 
 const voiceQuestions = [
   { question: "Who asked you to send it?", options: ["Called", "Message", "Self"] },
@@ -187,14 +194,14 @@ function screenTemplate() {
         <li>A real worker will not ask for your secret code.</li>
         <li>No reports is not proof a number is safe.</li></ul><div class="screen-source">simulated alerts</div>`;
     case "simToolkit":
-      return `<h2 class="screen-heading">SIM Toolkit</h2><ol class="screen-menu">
-        <li><span class="menu-number">1</span>Learn About Emerging Scams</li>
-        <li><span class="menu-number">2</span>Reverse Number Lookup</li>
-        <li><span class="menu-number">3</span>Report a Suspicious Number</li></ol>`;
+      return `<h2 class="screen-heading">${escapeHtml(t("simToolkitTitle"))}</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>${escapeHtml(t("simLearnTitle"))}</li>
+        <li><span class="menu-number">2</span>${escapeHtml(t("simLookupTitle"))}</li>
+        <li><span class="menu-number">3</span>${escapeHtml(t("simReportTitle"))}</li></ol>`;
     case "simToolkitLearn":
-      return centered("i", "Learn About Emerging Scams", "Coming soon. This section has no content yet.", "Back: SIM Toolkit menu");
+      return centered("i", t("simLearnTitle"), t("simLearnBody"), "Back: SIM Toolkit menu");
     case "simToolkitLookup":
-      return entryScreen("Reverse Number Lookup", "Phone number", "OK to check with Glance.");
+      return entryScreen(t("simLookupTitle"), t("simLookupNumber"), "OK to check with Glance.");
     case "simToolkitLookupResult": {
       const heading = { flagged: "Flagged by Glance", clear: "No threat found", error: "Could not check" }[state.reverseLookupStatus] || "No results";
       return `<h2 class="screen-heading">${escapeHtml(heading)}</h2>
@@ -202,13 +209,27 @@ function screenTemplate() {
         <p class="screen-small">Back: SIM Toolkit menu</p><div class="screen-source">source: Glance (stub)</div>`;
     }
     case "simToolkitReport":
-      return entryScreen("Report a Suspicious Number", "Phone number", "OK to report.");
+      return entryScreen(t("simReportTitle"), t("simReportNumber"), t("simReportNumberNote"));
+    case "simToolkitReportType":
+      return `<h2 class="screen-heading">${escapeHtml(t("simReportTypeTitle"))}</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>${escapeHtml(t("simReportType1"))}</li>
+        <li><span class="menu-number">2</span>${escapeHtml(t("simReportType2"))}</li>
+        <li><span class="menu-number">3</span>${escapeHtml(t("simReportType3"))}</li>
+        <li><span class="menu-number">4</span>${escapeHtml(t("simReportType4"))}</li>
+        <li><span class="menu-number">5</span>${escapeHtml(t("simReportType5"))}</li></ol>`;
+    case "simToolkitReportIdentity":
+      return entryScreen(t("simReportIdentityTitle"), t("simReportIdentityLabel"),
+        t("simReportIdentityNote"));
+    case "simToolkitReportLost":
+      return `<h2 class="screen-heading">${escapeHtml(t("simReportLostTitle"))}</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>${escapeHtml(t("simReportLostYes"))}</li>
+        <li><span class="menu-number">2</span>${escapeHtml(t("simReportLostNo"))}</li></ol>`;
     case "simToolkitReportSent":
       return centered("✓", "Report sent", state.reportSuspiciousMessage || "Thank you. This number has been noted as suspected.", "End: return to idle");
     case "language":
       return `<h2 class="screen-heading">Language</h2><ol class="screen-menu">
         <li><span class="menu-number">1</span>English</li><li><span class="menu-number">2</span>Twi</li></ol>${noticeHtml()}
-        <p class="screen-small">Twi needs an approved translation.</p>`;
+        <p class="screen-small">${escapeHtml(t("twSecurityReview"))}</p>`;
     case "sms": {
       const current = flow.messages[state.selectedMessage] || {};
       const title = state.messageTag === "transaction" ? "Payment receipt" : "Message";
@@ -280,7 +301,8 @@ async function finishReverseLookup() {
 
 async function finishReportSuspiciousNumber() {
   if (CONFIG.MODE === "controller") {
-    const result = await controller.reportSuspiciousNumber(flow.state.reportingSuspiciousNumber, flow.sender);
+    const payload = flow.buildSuspiciousReportPayload(flow.sender);
+    const result = await controller.reportSuspiciousNumber(payload);
     if (flow.state.screen !== "loading") return;
     if (result.ok) flow.applyReportSuspiciousResult(result.data);
     else flow.applyReportSuspiciousError();
@@ -317,6 +339,9 @@ function dispatch(key) {
   pendingTimer = null;
   const previousScreen = flow.state.screen;
   flow.press(key);
+  if (previousScreen === "language" && ["1", "2"].includes(key)) {
+  setPhoneLocale(key === "2" ? "tw" : "en");
+  }
   if (CONFIG.MODE === "controller" && ["end", "back"].includes(key)
       && ["server", "serverLoading", "serverError"].includes(previousScreen)) {
     controller.ussd(flow.sessionId, "end", flow.sender);
@@ -400,9 +425,8 @@ document.addEventListener("keydown", event => {
   dispatch(key);
 });
 
-fetch("./i18n/en.json")
-  .then(response => response.ok ? response.json() : Promise.reject(new Error("Translation unavailable")))
-  .then(data => { translations = { ...translations, ...data }; render(); })
+loadLocale("en")
+  .then(catalog => { translations = { ...catalog }; render(); })
   .catch(() => {});
 
 const resetButton = document.querySelector("#reset_demo");

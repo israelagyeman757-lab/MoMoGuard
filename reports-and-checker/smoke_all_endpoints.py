@@ -56,6 +56,10 @@ def main() -> int:
                                 "reporter_id": "smoke"}).json()
     check("report accepted", r["accepted"] is True)
 
+    r = c.get("/community/intelligence", params={"number": "0240000009"}).json()
+    check("community intelligence for reported demo number",
+          r["report_state"] in ("unverified", "high_confidence_warning", "corroborated"))
+
     r = c.get("/rancard/reverse-lookup", params={"number": "0240000009"}).json()
     check("rancard reverse-lookup flags known demo number (stub)", r["status"] == "flagged"
           and r["source"] == "rancard_stub")

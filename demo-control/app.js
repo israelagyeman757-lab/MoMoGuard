@@ -1,5 +1,6 @@
 import { SIMULATED_CONTACTS } from "./contacts.js";
 import { createDemoBridge } from "./demoBridge.js";
+import { fetchCommunityIntelligence } from "./services/communityAdapter.js";
 
 const bridge = createDemoBridge();
 const pending = new Map();
@@ -104,6 +105,9 @@ function contactCard(contact) {
   const contactedLine = contact.savedContact
     ? `Saved contact \u00b7 contacted ${contact.timesContactedBefore} times before (${contact.lastContact})`
     : "Not in contacts \u00b7 never contacted before";
+  const intelLine = contact.communityIntel?.message
+    ? `<p class="contact-intel">Community intel: ${escapeHtml(contact.communityIntel.message)}</p>`
+    : `<p class="contact-intel" data-intel-for="${escapeHtml(contact.number)}">Community intel: loading…</p>`;
   return `<li class="contact-card trust-${contact.trust}" data-id="${contact.id}">
     <div class="contact-head">
       <strong>${escapeHtml(contact.name)}</strong>
@@ -111,6 +115,7 @@ function contactCard(contact) {
     </div>
     <div class="contact-number">${escapeHtml(contact.number)}</div>
     <p class="contact-note">${escapeHtml(contact.note)}</p>
+    ${intelLine}
     <div class="contact-meta">${escapeHtml(contactedLine)}</div>
     <div class="contact-actions">
       <button type="button" data-action="use-message" data-id="${contact.id}">Use this message \u2192</button>
@@ -137,19 +142,37 @@ contactsList.addEventListener("click", event => {
   }
 
   if (button.dataset.action === "simulate-call") {
+    const intel = contact.communityIntel;
+    const intelNote = intel?.message ? ` Community intel: ${intel.message}` : "";
     sendEvent(
       {
         type: "incoming-call",
         name: contact.name,
         number: contact.call.recipient,
         trust: contact.trust,
-        note: contact.note,
+        note: contact.note + intelNote,
         amount: contact.call.amount,
+        community_report_state: intel?.report_state,
       },
-      `Simulating a call from ${contact.name} (${contact.number}), who ${contact.call.ask}.`,
+      `Simulating a call from ${contact.name} (${contact.number}), who ${contact.call.ask}.${intelNote}`,
     );
   }
 });
+
+async function hydrateCommunityIntel() {
+  await Promise.all(SIMULATED_CONTACTS.map(async contact => {
+    const intel = await fetchCommunityIntelligence(contact.number);
+    contact.communityIntel = intel;
+    const target = contactsList.querySelector(`[data-intel-for="${contact.number}"]`);
+    if (target && intel?.message) {
+      target.textContent = `Community intel: ${intel.message}`;
+    } else if (target) {
+      target.textContent = "Community intel: unavailable (is the controller running?)";
+    }
+  }));
+}
+
+hydrateCommunityIntel();
 
 bridgeStatus.textContent = bridge.available
   ? "Live bridge ready. Open the feature-phone preview in another tab on this same address to connect it."

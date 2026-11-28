@@ -1,7 +1,23 @@
 import { getReverseLookupPreview, getPaymentPreview, INITIAL_MESSAGES, makeTransactionMessage, makeControllerReceiptMessage } from "./mockResponses.js";
 
 const ENTRY_SCREENS = new Set(["ussd", "recipient", "amount", "reportNumber",
-  "simToolkitLookup", "simToolkitReport", "server"]);
+  "simToolkitLookup", "simToolkitReport", "simToolkitReportIdentity", "server"]);
+
+export const SIM_TOOLKIT_REPORT_TRICKS = {
+  1: "credential_theft",
+  2: "community_reported",
+  3: "possible_fake_reversal",
+  4: "possible_advance_fee",
+  5: "community_reported",
+};
+
+export const SIM_TOOLKIT_REQUEST_TYPES = {
+  1: "pin_or_verification_code",
+  2: "money_transfer",
+  3: "reversal",
+  4: "fee_prize_or_job",
+  5: "other",
+};
 const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calendar", "camera", "settings", "tools", "simToolkit"];
 const ACTIVE_APPS = new Set(["phone", "messages", "simToolkit"]);
 const APP_ENTRY_SCREEN = { phone: "ussd", messages: "messages", simToolkit: "simToolkit" };
@@ -39,6 +55,10 @@ export class PhoneFlow {
       reverseLookupStatus: "",
       reverseLookupMessage: "",
       reportingSuspiciousNumber: "",
+      reportSuspiciousTrick: "community_reported",
+      reportSuspiciousRequestType: "",
+      reportSuspiciousIdentity: "",
+      reportSuspiciousLostMoney: null,
       reportSuspiciousMessage: "",
       bigConfirmed: false,
       loadingKind: "",
@@ -90,7 +110,7 @@ export class PhoneFlow {
       }
       return;
     }
-    if (!entry) {
+    if (!entry && screen !== "simToolkitReportIdentity") {
       this.state.notice = "Please enter a value.";
       return;
     }
@@ -117,8 +137,11 @@ export class PhoneFlow {
     } else if (screen === "simToolkitReport") {
       this.state.reportingSuspiciousNumber = entry;
       this.state.entry = "";
-      this.state.loadingKind = "reportSuspicious";
-      this._replace("loading");
+      this._go("simToolkitReportType");
+    } else if (screen === "simToolkitReportIdentity") {
+      this.state.reportSuspiciousIdentity = entry.trim();
+      this.state.entry = "";
+      this._go("simToolkitReportLost");
     } else if (screen === "server") {
       this.state.serverPendingKey = entry;
       this.state.entry = "";
@@ -223,11 +246,30 @@ export class PhoneFlow {
         const innocent = a[0] === "3" && ["3", "4"].includes(a[1]) && a[2] === "2" && a[3] === "2" && a[4] === "1";
         this._replace(innocent ? "sent" : "cancelled");
       }
+    } else if (screen === "simToolkitReportType") {
+      if (SIM_TOOLKIT_REPORT_TRICKS[key]) {
+        this.state.reportSuspiciousTrick = SIM_TOOLKIT_REPORT_TRICKS[key];
+        this.state.reportSuspiciousRequestType = SIM_TOOLKIT_REQUEST_TYPES[key];
+        this._go("simToolkitReportIdentity");
+      }
+    } else if (screen === "simToolkitReportLost") {
+      if (key === "1") this.state.reportSuspiciousLostMoney = true;
+      if (key === "2") this.state.reportSuspiciousLostMoney = false;
+      if (key === "1" || key === "2") {
+        this.state.loadingKind = "reportSuspicious";
+        this._replace("loading");
+      }
     } else if (screen === "reportType") {
       if (["1", "2", "3"].includes(key)) this._replace("reportSent");
     } else if (screen === "language") {
-      if (key === "1") this.state.notice = "English is active.";
-      if (key === "2") this.state.notice = "Twi translation is coming soon. English is active.";
+      if (key === "1") {
+        this.state.language = "en";
+        this.state.notice = "English is active.";
+      }
+      if (key === "2") {
+        this.state.language = "tw";
+        this.state.notice = "Twi selected — some security warnings still need native review.";
+      }
     } else if (screen === "sent") {
       if (key === "ok") {
         this.state.pinLength = 0;
@@ -308,8 +350,25 @@ export class PhoneFlow {
     });
   }
 
+  buildSuspiciousReportPayload(reporterId) {
+    return {
+      number: this.state.reportingSuspiciousNumber,
+      trick: this.state.reportSuspiciousTrick,
+      reporter_id: reporterId,
+      request_type: this.state.reportSuspiciousRequestType,
+      claimed_identity: this.state.reportSuspiciousIdentity,
+      lost_money: this.state.reportSuspiciousLostMoney,
+      channel: "customer_sim_toolkit",
+    };
+  }
+
   applyReportSuspiciousResult(result) {
-    this.state.reportSuspiciousMessage = result.message || "Thank you. This number has been noted as suspected.";
+    const extra = result.report_state
+      ? ` Report status: ${result.report_state.replace(/_/g, " ")} (not proof of a scam).`
+      : "";
+    this.state.reportSuspiciousMessage = (
+      result.message || "Thank you. This number has been noted as suspected."
+    ) + extra;
     this._replace("simToolkitReportSent");
   }
 

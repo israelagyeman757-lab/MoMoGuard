@@ -115,8 +115,8 @@ test("report, alerts, and language screens are reachable", () => {
   flow.press("back");
   flow.press("5");
   flow.press("2");
-  assert.equal(flow.state.language, "en");
-  assert.match(flow.state.notice, /English is active/);
+  assert.equal(flow.state.language, "tw");
+  assert.match(flow.state.notice, /Twi selected/i);
 });
 
 // Grid is 3x3, row-major: row0=[phone,messages,contacts], row1=[calculator,
@@ -177,12 +177,21 @@ test("a Reverse Number Lookup backend failure shows a clearly-labelled error, no
   assert.match(flow.state.reverseLookupMessage, /not proof/i);
 });
 
-test("SIM Toolkit Report a Suspicious Number is a simpler, number-only flow", () => {
+test("SIM Toolkit Report collects number, request type, optional identity, and lost-money", () => {
   const flow = new PhoneFlow();
   openSimToolkit(flow);
   flow.press("3");
   assert.equal(flow.state.screen, "simToolkitReport");
   enter(flow, "0240000005");
+  assert.equal(flow.state.screen, "simToolkitReportType");
+  flow.press("3");
+  assert.equal(flow.state.screen, "simToolkitReportIdentity");
+  flow.press("ok");
+  assert.equal(flow.state.screen, "simToolkitReportLost");
+  flow.press("2");
+  assert.equal(flow.state.screen, "loading");
+  assert.equal(flow.state.reportSuspiciousTrick, "possible_fake_reversal");
+  assert.equal(flow.state.reportSuspiciousLostMoney, false);
   flow.finishReportSuspiciousNumber();
   assert.equal(flow.state.screen, "simToolkitReportSent");
   assert.match(flow.state.reportSuspiciousMessage, /noted as suspected/i);

@@ -194,6 +194,16 @@ def test_report_accepts_optional_community_fields_for_innovate_reps(client):
     assert again["accepted"] is False
 
 
+def test_community_intelligence_endpoint(client):
+    client.post("/report", json={
+        "number": "0240000888", "trick": "community_reported", "reporter_id": "c1",
+        "channel": "customer_sim_toolkit",
+    })
+    r = client.get("/community/intelligence", params={"number": "0240000888"}).json()
+    assert r["report_state"] == "unverified"
+    assert "not proof" in r["message"].lower()
+
+
 def test_rancard_reverse_lookup_endpoint_flags_known_demo_number(client):
     r = client.get("/rancard/reverse-lookup", params={"number": "0240000009"}).json()
     assert r["status"] == "flagged"

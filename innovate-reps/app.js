@@ -128,7 +128,8 @@ async function runLookup() {
 lookupButton.addEventListener("click", runLookup);
 lookupInput.addEventListener("keydown", event => { if (event.key === "Enter") runLookup(); });
 
-// --- Profile (placeholder only) ------------------------------------------
+// --- Profile (placeholder only; PRD §2.2) ---------------------------------
+document.querySelector("#profile_rep_id").textContent = repId.slice(0, 12) + "…";
 document.querySelector("#logout_button").addEventListener("click", () => {
   // Placeholder only -- there is no real session to end yet.
   showTab("actions");

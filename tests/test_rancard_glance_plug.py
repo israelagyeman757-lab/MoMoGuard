@@ -46,8 +46,24 @@ def test_reset_does_not_raise():
     plug.reset()  # stateless stub; just must not blow up
 
 
-def test_live_mode_raises_a_clear_not_implemented_error(monkeypatch):
+def test_live_mode_without_docs_falls_back_to_stub(monkeypatch):
     monkeypatch.setenv("RANCARD_GLANCE_MODE", "live")
+    monkeypatch.delenv("RANCARD_GLANCE_BASE_URL", raising=False)
+    monkeypatch.delenv("RANCARD_GLANCE_LOOKUP_PATH", raising=False)
     plug = RancardGlancePlug()
-    with pytest.raises(NotImplementedError, match="RANCARD_GLANCE_MODE=live"):
-        plug.reverse_lookup("0240000009")
+    result = plug.reverse_lookup("0240000009")
+    assert result["status"] == "flagged"
+    assert result["live_attempted"] is False
+    assert "live_note" in result
+
+
+def test_live_mode_http_failure_falls_back_with_error_status(monkeypatch):
+    monkeypatch.setenv("RANCARD_GLANCE_MODE", "live")
+    monkeypatch.setenv("RANCARD_GLANCE_BASE_URL", "https://invalid.example.test")
+    monkeypatch.setenv("RANCARD_GLANCE_LOOKUP_PATH", "/v1/lookup/{number}")
+    monkeypatch.setenv("RANCARD_GLANCE_API_KEY", "test-key-not-real")
+    plug = RancardGlancePlug()
+    result = plug.reverse_lookup("0240000001")
+    assert result["live_attempted"] is True
+    assert result["source"] == "rancard_stub"
+    assert result["status"] == "error"
