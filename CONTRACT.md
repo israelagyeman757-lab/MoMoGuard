@@ -1,7 +1,104 @@
-# MoMoGuard API Contract — v0.2
+# MoMoGuard API Contract — v0.4
 
 Shared contract between the **controller** (this repo, Python/FastAPI) and the **phone page + scoreboard** (Person 2).
 Nobody changes this file alone: post the change in the team chat, edit this file, raise the version number.
+
+**Read this before building anything.** This file is also the instructions file for any AI coding
+assistant working on this repo — read it first and only touch your own folder, per the project's
+own long-standing convention.
+
+## Current product direction (v0.4 — read this section first, supersedes v0.3 below)
+
+**This section is the authoritative, current product direction.** It supersedes both the original
+Track 3 (fraud-blocking/scoring) framing *and* the Track 4 pivot framing/blueprint recorded in the
+"v0.3" section further down and in the project's internal `community-pivot-review.md` note — those
+are kept below as historical record, not as live direction. Where they conflict with this section,
+this section wins.
+
+> **Provenance note:** this is a condensed summary of the product direction as relayed to the AI
+> agent maintaining this file, not a verbatim paste of an original PRD document (the agent was not
+> given the original file to paste in full). If a full written PRD document exists, paste its exact
+> text in place of this summary and keep this note only as a changelog breadcrumb.
+
+**Remove (in scope now):**
+- The **old USSD customer-lookup menu/screens/session handling** — i.e. only the number-lookup
+  parts of the existing USSD flow and its feature-phone UI, not the whole USSD system. Audit
+  dependencies first; do not break anything still needed by the payment flow or the reporting
+  flow. See `docs/track3-removal-candidates.md` for the dependency audit and exact edits.
+- The **Gemini SMS Agent design document and any associated code/config.** (`docs/sms-ai-agent-design.md`
+  — confirmed by audit to be a design/research note only; no implementation code or `.env` entries
+  reference Gemini anywhere else in the repo.) This work is **retired**, not deferred.
+
+**Retain as-is, not headline (keep working, do not rebuild around it):**
+- The real-money-movement / MTN MoMo sandbox simulation (`controller/plugs/bank_plug.py`,
+  `controller/plugs/mtn_momo_bank_plug.py`, `BANK_PLUG_MODE=mtn_sandbox`, the Brain/pause-manager
+  payment-risk flow). Still a secondary/background capability supporting a Track 1 claim, per the
+  v0.3 framing below — this PRD does not change that status.
+- The call console simulator (`demo-control/`). **Gets modified, not removed**, to integrate with
+  community reports/warnings (exact integration is future work, not scoped in this file update).
+- The community-reporting backbone (`controller/plugs/glance_plug.py` / `GlancePlug`, and the
+  community `reports`/`numbers`/`warnings` work from the Track 4 pivot). GlancePlug in particular
+  is a **hard dependency** of the payment Brain's scoring (`glance.check(recipient)["reports"]` in
+  `build_context()`), not just a lookup convenience — it must not be deleted even though the
+  *customer-facing* lookup menu that also used it is being removed.
+
+**Net new, to build later (explicitly future work, not scoped by this file update):**
+- An **"Innovate Reps"** community-representative interface: an Actions tab (report-a-scam form +
+  reverse-number-lookup section) and a Profile tab.
+- A customer-facing **SIM Toolkit menu** with exactly 3 options — Learn About Emerging Scams
+  (placeholder only, no content yet), Reverse Number Lookup, Report a Suspicious Number — replacing
+  the old USSD lookup entry point in the feature-phone simulator's 3×3 app grid.
+- A centralized **Rancard Glance API** backend service. This is a real third-party number-reputation
+  API, **not** the existing `NetworkPlug`/"Network API" and **not** an invented/guessed endpoint
+  shape. `.env.example` already carries `GLANCE_API_KEY`/`GLANCE_BASE_URL` placeholders and the
+  existing `GlancePlug` class name anticipates this exact integration — whoever builds this should
+  inspect any existing Rancard integration notes/credentials first and not guess the request/response
+  schema.
+- **Twi localization** (English default + Twi) via a centralized translation layer. (`phone-page/i18n/`
+  already has an `en.json`/`tw.json` split with an empty `tw.json` as a starting point.)
+
+**Database:** preserve the existing SQLite schema from the Track 4 pivot (`reports`, `numbers`,
+`warnings`, `training_attempts`). **Do not drop tables.** Any schema change needed for the above
+net-new work must be an additive migration, not a rewrite.
+
+**Rancard Glance replaces any prior ad hoc number-lookup/registry approach** — i.e. once it lands,
+new number-reputation reads (Reverse Number Lookup, the Innovate Reps interface) should call it
+rather than inventing another local/canned lookup table. This does not retroactively obsolete
+`GlancePlug`'s internal role feeding the payment Brain's risk score (see "Retain as-is" above);
+that is a separate, still-needed internal signal, not a customer-facing lookup surface.
+
+**Known open item for whoever merges branches:** the Track 4 pivot MVP (`cursor/community-pivot-mvp-9df9`,
+PR #5) independently bumped this file to its own "v0.3" with different content than the "v0.3"
+section preserved below. Reconcile both v0.3 drafts into a single v0.4+ document when merging,
+rather than silently picking one.
+
+## Project framing (v0.3 — superseded by "Current product direction" above; kept as historical record)
+
+**The project's primary track is now Track 4 (Community) + Track 1 support ("spot the scam"),
+not Track 3 (fraud-blocking/scoring).** This is a deliberate pivot decision, made partly over
+Ghana Data Protection Act concerns with the old Track 3 framing (an automated system reading and
+acting on payment/SMS data).
+
+- **The old Track 3 payment-risk system — Brain, pause manager, OTP stub, MTN sandbox bank plug,
+  MessageIntelligenceAgent — is de-emphasized, not removed.** It stays in the repo, stays
+  working, stays tested. Do not delete or rework it without an explicit decision to do so (see
+  `docs/track3-removal-candidates.md` for what that would mean if it's ever approved — it is a
+  candidate list only, nothing in it is scheduled for deletion yet).
+  It is now a **secondary/background capability** — worth keeping because it already works and
+  can support a Track 1 ("spot the scam") bonus claim — but it is **no longer the headline
+  feature** and no longer what new work should be designed around.
+- **New work should follow the community-reporting / moderation / warnings / training model**,
+  not the payment-pause-and-score model. Concretely: a **report** is submitted by anyone, is
+  unreviewed, and is never proof on its own; a **report becomes a warning** only after a
+  moderator reviews and publishes it, and a published warning does not auto-decay the way a raw
+  report count does. Build new features as this report → moderate → publish → read-back pipeline
+  (reports, numbers/reputation, warnings, training/quiz), reusing this file's existing
+  endpoint-per-feature conventions (plain JSON in/out, `source` labelling, "may be / not proof"
+  wording, no PIN/OTP ever) rather than extending the old payment-risk scoring model.
+- When in doubt about which system a new feature belongs in: if it's about deciding whether *this
+  specific payment, right now* should go through, it's Track 3 (old system, touch sparingly). If
+  it's about the community knowing/learning something that outlives one payment — a reported
+  number, a published alert, a training exercise — it's Track 4 (new system, build here).
 
 - Base URL (dev): `http://127.0.0.1:8000`
 - All requests/responses are JSON. `GET /check-number` uses a query parameter.
