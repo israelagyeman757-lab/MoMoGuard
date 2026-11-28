@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from controller.momoguard_store import MoMoGuardStore
+from typing import Any
 
 DEMO_SCAM_NUMBER = "0244123456"
 
@@ -33,8 +33,9 @@ _POST_QUESTIONS = [
 ]
 
 
-def seed_demo(store: MoMoGuardStore) -> None:
-    store.reset()
+def seed_demo(store: Any, *, reset: bool = True) -> None:
+    if reset:
+        store.reset()
     store.upsert_user("mod-001", "Demo Moderator", "moderator")
     store.upsert_user("train-user-1", "Ama", "user")
     store.upsert_user("reporter-1", "Kwesi", "user")
@@ -91,3 +92,10 @@ def seed_demo(store: MoMoGuardStore) -> None:
             "loss_reported": False,
         }
     )
+
+
+def ensure_demo_seed(store: Any) -> None:
+    """Load fictional demo data once (idempotent for durable Supabase startup)."""
+    if store.get_user("mod-001"):
+        return
+    seed_demo(store, reset=False)
