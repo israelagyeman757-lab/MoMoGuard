@@ -1,7 +1,14 @@
 # Removal candidates: USSD customer lookup + Gemini SMS Agent design doc
 
-**Status:** actionable removal plan, scoped strictly to what the PRD's Section 5 and Section 6
-actually call for removing today. Nothing else in the repo is in scope here.
+**Status: EXECUTED.** Both removals below (§1 and §2) were carried out directly as part of the
+same change that built the Rancard Glance stub, the Innovate Reps console, and the SIM Toolkit —
+see that change's commit/PR for the actual diff. This document is kept as the record of what was
+removed and why (and the dependency audit behind it), not as a pending to-do. The git workflow in
+§4 was written for a hypothetical Qoder-driven execution but was **not** the path actually used;
+the real commit history is the source of truth for exactly what happened and when.
+
+Original framing, unchanged below: an actionable removal plan, scoped strictly to what the PRD's
+Section 5 and Section 6 actually call for removing. Nothing else in the repo was in scope here.
 
 **Supersedes:** an earlier, broader draft of this document that treated *all* of Track 3
 (Brain/pause-manager/fraud-scoring, the MTN sandbox bank plug, the MessageIntelligenceAgent, and

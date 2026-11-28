@@ -19,6 +19,7 @@ from controller.plugs.data_plug import DataPlug
 from controller.plugs.glance_plug import GlancePlug
 from controller.plugs.mtn_momo_bank_plug import MtnMomoBankPlug
 from controller.plugs.network_plug import NetworkPlug
+from controller.plugs.rancard_glance_plug import RancardGlancePlug
 from controller.ussd import UssdRouter
 
 SOURCES = {"bank": "simulated", "network": "simulated",
@@ -53,6 +54,7 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
     data = DataPlug()
     glance = GlancePlug()
     network = NetworkPlug()
+    rancard = RancardGlancePlug()
     metrics = MetricsStore()
     confirms: dict[str, dict] = {}
 
@@ -221,15 +223,17 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
                 "message": "This payment still looks unusual. Please try the safety check again.",
                 "attempts_left": outcome["attempts_left"]}
 
-    async def do_report(number: str, trick: str, reporter_id: str) -> dict:
-        result = glance.report(number, trick, reporter_id)
+    async def do_report(number: str, trick: str, reporter_id: str, description: str = "",
+                        community: str = "", incident_time: str = "") -> dict:
+        result = glance.report(number, trick, reporter_id, description=description,
+                               community=community, incident_time=incident_time)
         metrics.record("report", number=number, trick=trick, accepted=result["accepted"])
         return result
 
-    async def do_check_number(number: str) -> dict:
-        return glance.check(number)
+    async def do_rancard_reverse_lookup(number: str) -> dict:
+        return rancard.reverse_lookup(number)
 
-    ussd = UssdRouter(do_assess, do_confirm, do_voice_result, do_report, do_check_number)
+    ussd = UssdRouter(do_assess, do_confirm, do_voice_result, do_report)
 
     app.state.bank = bank
     app.state.pm = pm
@@ -273,11 +277,13 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
     @app.post("/report")
     async def report(body: dict):
         _require(body, "number", "trick", "reporter_id")
-        return await do_report(body["number"], body["trick"], body["reporter_id"])
+        return await do_report(body["number"], body["trick"], body["reporter_id"],
+                               body.get("description", ""), body.get("community", ""),
+                               body.get("incident_time", ""))
 
-    @app.get("/check-number")
-    async def check_number(number: str):
-        return await do_check_number(number)
+    @app.get("/rancard/reverse-lookup")
+    async def rancard_reverse_lookup(number: str):
+        return await do_rancard_reverse_lookup(number)
 
     @app.post("/check-sms")
     async def check_sms(body: dict):
@@ -312,6 +318,7 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
         data.reset()
         glance.reset()
         network.reset()
+        rancard.reset()
         await pm.reset()
         metrics.reset()
         confirms.clear()

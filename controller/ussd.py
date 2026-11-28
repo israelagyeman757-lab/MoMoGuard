@@ -5,7 +5,7 @@ presses here and displays the returned text. All logic stays in the controller.
 import re
 
 MAIN_MENU = ("Welcome to MoMoGuard\n1 Send Money\n2 Report a Scam\n"
-             "3 Scam Alerts\n4 Check a Number\n5 Language")
+             "3 Scam Alerts\n5 Language")
 
 VOICE_QUESTIONS = [
     ("who_asked", "Safety check. Who asked you to send this? "
@@ -26,12 +26,11 @@ TRICKS = {
 
 
 class UssdRouter:
-    def __init__(self, assess, confirm, voice_result, report, check_number):
+    def __init__(self, assess, confirm, voice_result, report):
         self._assess = assess
         self._confirm = confirm
         self._voice_result = voice_result
         self._report = report
-        self._check_number = check_number
         self.sessions: dict[str, dict] = {}
 
     def reset(self) -> None:
@@ -100,12 +99,6 @@ class UssdRouter:
             result = await self._report(number, trick, session_id)
             session["state"] = "result"
             return self._screen(session_id, result["message"])
-        if state == "check_number":
-            if re.fullmatch(r"\+?\d{7,15}", key):
-                result = await self._check_number(key)
-                session["state"] = "result"
-                return self._screen(session_id, result["message"])
-            return self._screen(session_id, "Invalid number. Enter the number:")
         if state == "language":
             if key == "2":
                 session["state"] = "result"
@@ -131,9 +124,6 @@ class UssdRouter:
             return self._screen(session_id, "Scam alerts: never share your PIN or "
                                             "code. Check your balance yourself before "
                                             "sending money back.")
-        if key == "4":
-            session["state"] = "check_number"
-            return self._screen(session_id, "Check a number. Enter the number:")
         if key == "5":
             session["state"] = "language"
             return self._screen(session_id, "Language: 1 English 2 Twi")

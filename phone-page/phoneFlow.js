@@ -1,8 +1,10 @@
-import { getNumberPreview, getPaymentPreview, INITIAL_MESSAGES, makeTransactionMessage, makeControllerReceiptMessage } from "./mockResponses.js";
+import { getReverseLookupPreview, getPaymentPreview, INITIAL_MESSAGES, makeTransactionMessage, makeControllerReceiptMessage } from "./mockResponses.js";
 
-const ENTRY_SCREENS = new Set(["ussd", "recipient", "amount", "reportNumber", "checkNumber", "server"]);
-const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calendar", "camera", "settings", "tools", "games"];
-const ACTIVE_APPS = new Set(["phone", "messages"]);
+const ENTRY_SCREENS = new Set(["ussd", "recipient", "amount", "reportNumber",
+  "simToolkitLookup", "simToolkitReport", "server"]);
+const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calendar", "camera", "settings", "tools", "simToolkit"];
+const ACTIVE_APPS = new Set(["phone", "messages", "simToolkit"]);
+const APP_ENTRY_SCREEN = { phone: "ussd", messages: "messages", simToolkit: "simToolkit" };
 
 export class PhoneFlow {
   constructor({ mode = "mock" } = {}) {
@@ -33,7 +35,11 @@ export class PhoneFlow {
       voiceStep: 0,
       voiceAnswers: [],
       pinLength: 0,
-      numberStatus: "",
+      reverseLookupNumber: "",
+      reverseLookupStatus: "",
+      reverseLookupMessage: "",
+      reportingSuspiciousNumber: "",
+      reportSuspiciousMessage: "",
       bigConfirmed: false,
       loadingKind: "",
       serverText: "",
@@ -103,10 +109,15 @@ export class PhoneFlow {
     } else if (screen === "reportNumber") {
       this.state.entry = "";
       this._go("reportType");
-    } else if (screen === "checkNumber") {
-      this.state.checkingNumber = entry;
+    } else if (screen === "simToolkitLookup") {
+      this.state.reverseLookupNumber = entry;
       this.state.entry = "";
-      this.state.loadingKind = "number";
+      this.state.loadingKind = "reverseLookup";
+      this._replace("loading");
+    } else if (screen === "simToolkitReport") {
+      this.state.reportingSuspiciousNumber = entry;
+      this.state.entry = "";
+      this.state.loadingKind = "reportSuspicious";
       this._replace("loading");
     } else if (screen === "server") {
       this.state.serverPendingKey = entry;
@@ -161,7 +172,7 @@ export class PhoneFlow {
         this.state.selectedApp = APP_ORDER[next];
       }
       if (key === "ok" && ACTIVE_APPS.has(this.state.selectedApp)) {
-        this._go(this.state.selectedApp === "phone" ? "ussd" : "messages");
+        this._go(APP_ENTRY_SCREEN[this.state.selectedApp]);
       }
     } else if (screen === "messages") {
       if (key === "down") this.state.selectedMessage = Math.min(this.messages.length - 1, this.state.selectedMessage + 1);
@@ -174,7 +185,10 @@ export class PhoneFlow {
         this._go("sms");
       }
     } else if (screen === "main") {
-      const destinations = { "1": "recipient", "2": "reportNumber", "3": "alerts", "4": "checkNumber", "5": "language" };
+      const destinations = { "1": "recipient", "2": "reportNumber", "3": "alerts", "5": "language" };
+      if (destinations[key]) this._go(destinations[key]);
+    } else if (screen === "simToolkit") {
+      const destinations = { "1": "simToolkitLearn", "2": "simToolkitLookup", "3": "simToolkitReport" };
       if (destinations[key]) this._go(destinations[key]);
     } else if (screen === "confirm") {
       if (key === "1") {
@@ -263,12 +277,45 @@ export class PhoneFlow {
     this._replace("voiceQuestion");
   }
 
-  finishNumberCheck() {
-    if (this.state.screen !== "loading" || !this.state.checkingNumber) return;
-    const result = getNumberPreview(this.state.checkingNumber);
-    this.state.numberStatus = result.numberStatus;
-    this.state.message = result.message;
-    this._replace("numberResult");
+  // --- SIM Toolkit: Reverse Number Lookup + Report a Suspicious Number ---
+  // Default (mock-mode) behavior lives here, pure and synchronous, so it's
+  // testable without a controller. app.js overrides this with a real
+  // controller-backed call when CONFIG.MODE === "controller", the same
+  // pattern used for the Messages app's live /check-sms call.
+
+  finishReverseLookup() {
+    if (this.state.screen !== "loading" || !this.state.reverseLookupNumber) return;
+    this.applyReverseLookupResult(getReverseLookupPreview(this.state.reverseLookupNumber));
+  }
+
+  applyReverseLookupResult(result) {
+    this.state.reverseLookupStatus = result.status || "no_results";
+    this.state.reverseLookupMessage = result.message || "";
+    this._replace("simToolkitLookupResult");
+  }
+
+  applyReverseLookupError() {
+    this.applyReverseLookupResult({
+      status: "error",
+      message: "Could not reach Glance. That is not proof this number is safe or unsafe.",
+    });
+  }
+
+  finishReportSuspiciousNumber() {
+    if (this.state.screen !== "loading" || !this.state.reportingSuspiciousNumber) return;
+    this.applyReportSuspiciousResult({
+      message: "Thank you. This number has been noted as suspected.",
+    });
+  }
+
+  applyReportSuspiciousResult(result) {
+    this.state.reportSuspiciousMessage = result.message || "Thank you. This number has been noted as suspected.";
+    this._replace("simToolkitReportSent");
+  }
+
+  applyReportSuspiciousError() {
+    this.state.message = "Could not reach MoMoGuard. Please try again.";
+    this._replace("error");
   }
 
   // --- Demo-control bridge -------------------------------------------

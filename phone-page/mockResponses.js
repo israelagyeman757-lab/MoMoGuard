@@ -33,22 +33,25 @@ export function getPaymentPreview(recipient, amount, bigConfirmed = false) {
   };
 }
 
-export function getNumberPreview(number) {
-  if (number === "0240000009") {
+/** Mock-mode preview for the SIM Toolkit's Reverse Number Lookup. Mirrors
+ * controller/plugs/rancard_glance_plug.py's canned stub numbers so mock
+ * mode and controller mode tell the same demo story. */
+export function getReverseLookupPreview(number) {
+  if (number === "0240000009" || number === "0240000005") {
     return {
-      numberStatus: "reports",
-      message: "3 reports found. This may be a warning sign, not proof it is unsafe.",
+      status: "flagged",
+      message: "Glance has flagged this number. That may be a warning sign, not proof it is unsafe.",
     };
   }
-  if (number === "0240000004") {
+  if (number === "0000000000") {
     return {
-      numberStatus: "unavailable",
-      message: "Could not check this number. This is not proof it is safe or unsafe.",
+      status: "error",
+      message: "Glance could not be reached. That is not proof it is safe or unsafe.",
     };
   }
   return {
-    numberStatus: "unreported",
-    message: "No reports found. This is not proof it is safe.",
+    status: "no_results",
+    message: "No Glance record found for this number. That is not proof it is safe.",
   };
 }
 

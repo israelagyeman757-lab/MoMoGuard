@@ -58,7 +58,13 @@ class GlancePlug:
                 "message": messages[risk], "source": self.source}
 
     def report(self, number: str, trick: str, reporter_id: str,
-               age_days: float = 0) -> dict:
+               age_days: float = 0, description: str = "", community: str = "",
+               incident_time: str = "") -> dict:
+        """description/community/incident_time are optional free-text extras
+        the Innovate Reps console and the SIM Toolkit's report forms collect
+        that the original USSD "Report a Scam" flow didn't -- stored
+        alongside the existing fields, never required, so the old USSD flow
+        (which only ever passes number/trick/reporter_id) is unaffected."""
         hashed = _hash_reporter(reporter_id)
         ts = datetime.now(timezone.utc) - timedelta(days=age_days)
         day = ts.date().isoformat()
@@ -67,7 +73,9 @@ class GlancePlug:
                 return {"accepted": False,
                         "message": "You already reported this number today."}
         self._local.append({"ts": ts.isoformat(timespec="seconds"), "day": day,
-                            "reporter_id": hashed, "number": number, "trick": trick})
+                            "reporter_id": hashed, "number": number, "trick": trick,
+                            "description": description, "community": community,
+                            "incident_time": incident_time})
         return {"accepted": True,
                 "message": "Thank you. This number has been noted as suspected."}
 

@@ -56,9 +56,9 @@ def main() -> int:
                                 "reporter_id": "smoke"}).json()
     check("report accepted", r["accepted"] is True)
 
-    r = c.get("/check-number", params={"number": "0240000009"}).json()
-    check("check-number returns reputation", r["risk"] == "high"
-          and r["source"] == "simulated")
+    r = c.get("/rancard/reverse-lookup", params={"number": "0240000009"}).json()
+    check("rancard reverse-lookup flags known demo number (stub)", r["status"] == "flagged"
+          and r["source"] == "rancard_stub")
 
     r = c.post("/check-sms", json={"sender": "0240000005", "recipient": AUNTY,
                                    "text": "I have sent you GH₵300. Please return GH₵200 immediately.",

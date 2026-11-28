@@ -20,42 +20,74 @@ this section wins.
 > given the original file to paste in full). If a full written PRD document exists, paste its exact
 > text in place of this summary and keep this note only as a changelog breadcrumb.
 
-**Remove (in scope now):**
+**Build status (as of this change — everything below marked ✅ is already in the repo, not just planned):**
+- ✅ Rancard Glance stub backend (`controller/plugs/rancard_glance_plug.py`, `GET /rancard/reverse-lookup`)
+- ✅ Innovate Reps console (`innovate-reps/` — separate page, own two-tab app, linked from the
+  feature-phone preview's footer, not embedded in it)
+- ✅ SIM Toolkit app in the feature-phone 3×3 grid (replaces the old "Games" slot)
+- ✅ Old USSD customer-lookup menu/screens/session handling — removed
+- ✅ Gemini SMS Agent design doc — removed
+- ⬜ Twi localization — **not done**, explicitly deferred
+- ⬜ Call-console (`demo-control/`) integration with community reports/warnings — **not done**,
+  explicitly deferred
+- ⬜ A real (non-stub) Rancard Glance client — blocked on Rancard providing actual API docs
+
+**Removed:**
 - The **old USSD customer-lookup menu/screens/session handling** — i.e. only the number-lookup
-  parts of the existing USSD flow and its feature-phone UI, not the whole USSD system. Audit
-  dependencies first; do not break anything still needed by the payment flow or the reporting
-  flow. See `docs/track3-removal-candidates.md` for the dependency audit and exact edits.
+  parts of the existing USSD flow and its feature-phone UI, not the whole USSD system. See
+  `docs/track3-removal-candidates.md` for the dependency audit this was based on (GlancePlug itself,
+  and the separate "Report a Scam" flow that also uses it, were untouched — only the customer-facing
+  lookup menu went). Number lookup now lives in the SIM Toolkit app and the Innovate Reps console
+  instead, both backed by the new Rancard Glance stub.
 - The **Gemini SMS Agent design document and any associated code/config.** (`docs/sms-ai-agent-design.md`
   — confirmed by audit to be a design/research note only; no implementation code or `.env` entries
-  reference Gemini anywhere else in the repo.) This work is **retired**, not deferred.
+  referenced Gemini anywhere else in the repo.) This work is retired, not deferred.
 
 **Retain as-is, not headline (keep working, do not rebuild around it):**
 - The real-money-movement / MTN MoMo sandbox simulation (`controller/plugs/bank_plug.py`,
   `controller/plugs/mtn_momo_bank_plug.py`, `BANK_PLUG_MODE=mtn_sandbox`, the Brain/pause-manager
   payment-risk flow). Still a secondary/background capability supporting a Track 1 claim, per the
   v0.3 framing below — this PRD does not change that status.
-- The call console simulator (`demo-control/`). **Gets modified, not removed**, to integrate with
-  community reports/warnings (exact integration is future work, not scoped in this file update).
+- The call console simulator (`demo-control/`). Untouched in this change. Integration with
+  community reports/warnings is still future work, explicitly deferred (see "Build status" above).
 - The community-reporting backbone (`controller/plugs/glance_plug.py` / `GlancePlug`, and the
   community `reports`/`numbers`/`warnings` work from the Track 4 pivot). GlancePlug in particular
   is a **hard dependency** of the payment Brain's scoring (`glance.check(recipient)["reports"]` in
   `build_context()`), not just a lookup convenience — it must not be deleted even though the
   *customer-facing* lookup menu that also used it is being removed.
 
-**Net new, to build later (explicitly future work, not scoped by this file update):**
-- An **"Innovate Reps"** community-representative interface: an Actions tab (report-a-scam form +
-  reverse-number-lookup section) and a Profile tab.
-- A customer-facing **SIM Toolkit menu** with exactly 3 options — Learn About Emerging Scams
-  (placeholder only, no content yet), Reverse Number Lookup, Report a Suspicious Number — replacing
-  the old USSD lookup entry point in the feature-phone simulator's 3×3 app grid.
+**Built in this change:**
+- An **"Innovate Reps"** community-representative interface (`innovate-reps/`): its own standalone
+  page — a separate smartphone-style UI, **not** embedded in or sharing a page with the customer
+  feature-phone simulator — with a two-tab bottom nav (Actions, Profile). The Actions tab has a
+  Report-a-Scam form (phone number, time, community, description) that posts to the same `/report`
+  endpoint/`GlancePlug` storage the USSD flow already uses, plus a Reverse Number Lookup section
+  calling the new Rancard Glance stub. Profile is a static placeholder (name, community, settings,
+  log out) per the current build plan. Linked from the feature-phone preview's page footer
+  (`phone-page/index.html`) — the feature-phone UI itself is otherwise unchanged.
+- A customer-facing **SIM Toolkit app**, added to the feature-phone simulator's 3×3 app grid in
+  place of the old, purely-decorative "Games" slot (the least thematically relevant, non-functional
+  icon in that grid — see the code comment at its definition in `phone-page/app.js`). Its 3 options:
+  Learn About Emerging Scams (placeholder only, no content, per the brief), Reverse Number Lookup
+  (same shared Rancard Glance stub as Innovate Reps), and Report a Suspicious Number (a simpler,
+  number-only flow than the Innovate Reps form, feeding the same `/report`/`GlancePlug` storage).
 - A centralized **Rancard Glance API** backend service. This is a real third-party number-reputation
-  API, **not** the existing `NetworkPlug`/"Network API" and **not** an invented/guessed endpoint
-  shape. `.env.example` already carries `GLANCE_API_KEY`/`GLANCE_BASE_URL` placeholders and the
-  existing `GlancePlug` class name anticipates this exact integration — whoever builds this should
-  inspect any existing Rancard integration notes/credentials first and not guess the request/response
-  schema.
+  API (confirmed at rancard.com — real-time number lookup/verification, threat status, risk level,
+  history, centralised threat reporting), **not** the existing `NetworkPlug`/"Network API". Rancard's
+  public developer page does not publish a request/response schema or base URL — only "work with the
+  Rancard team" for product-specific docs — so **`controller/plugs/rancard_glance_plug.py` ships as a
+  clearly-labelled stub** (`GET /rancard/reverse-lookup?number=`, `source: "rancard_stub"`) behind the
+  real interface shape, not an invented/guessed live integration. `RANCARD_GLANCE_API_KEY` /
+  `RANCARD_GLANCE_BASE_URL` / `RANCARD_GLANCE_MODE` are in `.env.example` as placeholders; flipping
+  `RANCARD_GLANCE_MODE` to `"live"` raises immediately until a real client is implemented against
+  confirmed Rancard docs.
+
+**Still future work, explicitly deferred (not built in this change):**
 - **Twi localization** (English default + Twi) via a centralized translation layer. (`phone-page/i18n/`
   already has an `en.json`/`tw.json` split with an empty `tw.json` as a starting point.)
+- Integrating the call console simulator (`demo-control/`) with community reports/warnings.
+- A real (non-stub) Rancard Glance client — blocked on Rancard providing actual request/response
+  documentation; see `controller/plugs/rancard_glance_plug.py`.
 
 **Database:** preserve the existing SQLite schema from the Track 4 pivot (`reports`, `numbers`,
 `warnings`, `training_attempts`). **Do not drop tables.** Any schema change needed for the above
@@ -101,7 +133,7 @@ acting on payment/SMS data).
   number, a published alert, a training exercise — it's Track 4 (new system, build here).
 
 - Base URL (dev): `http://127.0.0.1:8000`
-- All requests/responses are JSON. `GET /check-number` uses a query parameter.
+- All requests/responses are JSON. `GET` endpoints (`/rancard/reverse-lookup`, `/metrics`, `/audit`) use a query parameter or none; everything else is a JSON body.
 - The phone page is a **dumb screen**: it sends key presses to `POST /ussd` and displays the returned text. It does no risk calculation.
 - Everything simulated is labelled `source: "simulated"`.
 - **No endpoint ever accepts, stores, or logs a PIN or OTP.**
@@ -116,8 +148,8 @@ acting on payment/SMS data).
 | `POST /confirm` | Answer to the big-amount confirm screen (`yes`/`no`). |
 | `POST /voice-result` | Keypad answers from the voice check; returns release/hold/cancel. |
 | `POST /resume` | Resume a paused payment with its reference (single-use, owner-bound). |
-| `POST /report` | Report a number as *suspected*, with a scam name. |
-| `GET /check-number?number=` | Number reputation (Glance stub, else local report list). |
+| `POST /report` | Report a number as *suspected*. `trick` is a scam name, or `"community_reported"` from the Innovate Reps console / SIM Toolkit's simpler report flow, which also accept optional `description`/`community`/`incident_time`. |
+| `GET /rancard/reverse-lookup?number=` | Reverse number lookup via Rancard Glance. **Stub** — see `controller/plugs/rancard_glance_plug.py`. Replaces the old `GET /check-number` (removed; `GlancePlug.check()` itself is unchanged and still feeds `/assess`'s internal risk scoring). |
 | `POST /check-sms` | Message Intelligence Agent. Warn-only. |
 | `POST /check-otp` | **STUB ONLY — on hold.** Returns a not-implemented placeholder. No OTP logic exists. |
 | `POST /ussd` | Server-driven menus: page sends the key pressed, controller returns the next screen text. |
@@ -209,22 +241,39 @@ Checks the state of a paused payment. If sender/recipient/amount changed, the pa
 
 ```json
 // request
-{ "number": "0240000009", "trick": "possible_fake_reversal", "reporter_id": "s1" }
+{ "number": "0240000009", "trick": "possible_fake_reversal", "reporter_id": "s1",
+  "description": "optional, free text", "community": "optional", "incident_time": "optional" }
 // response
 { "accepted": true, "message": "Thank you. This number has been noted as suspected." }
 ```
-- Reports are *suspected*, never proof. One report per reporter per number per day.
+- Reports are *suspected*, never proof. One report per reporter per number per day (dedup is keyed
+  by number/reporter/day only — the optional fields below don't affect it).
 - Reporter ID is stored as a keyed hash (pseudonymous), never raw.
 - Goes to the local report list now; Glance submission is a stub until access arrives.
+- `trick` is either one of the original scam-name values (from the USSD "Report a Scam" flow's
+  3-option picker) or the fixed string `"community_reported"` (from the Innovate Reps console's
+  report form, or the SIM Toolkit's simpler "Report a Suspicious Number" option, neither of which
+  has that picker). `description`/`community`/`incident_time` are optional free-text extras those
+  two newer flows collect; the original USSD flow never sends them.
 
-## GET /check-number?number=0240000009
+## GET /rancard/reverse-lookup?number=0240000009
+
+**Stub.** See `controller/plugs/rancard_glance_plug.py`'s module docstring for exactly what was and
+wasn't found in Rancard's public documentation — no real HTTP call is made.
 
 ```json
-{ "number": "0240000009", "reports": 3, "risk": "high|single_source|unreported|unavailable|error",
-  "message": "This number has been reported by several people. That may be a warning sign, not proof it is unsafe.",
-  "source": "simulated" }
+{ "number": "0240000009", "status": "flagged|clear|no_results|error", "risk": "high|low|unknown|unavailable",
+  "history": ["reported for an advance-fee scam pattern (demo data)"],
+  "message": "Glance has flagged this number. That may be a warning sign, not proof it is unsafe.",
+  "source": "rancard_stub" }
 ```
-- "Unreported" never means "safe". Unavailable → no penalty, message says the number could not be checked.
+- Shared by the Innovate Reps console's Reverse Number Lookup section and the SIM Toolkit's Reverse
+  Number Lookup option — one backend call, not two.
+- Replaces the old `GET /check-number` (removed). `GlancePlug.check()` itself is **not** replaced or
+  removed — it still runs inside `/assess`'s internal risk-scoring context, unrelated to this
+  customer-facing lookup.
+- `"no_results"`/`"clear"` never mean "safe" — every message says so explicitly, same convention as
+  the rest of this project.
 
 ## POST /check-sms
 
@@ -272,7 +321,12 @@ No OTP logic is built. The OTP approach is still being decided by the project ow
 ```
 - `key: ""` (or `"start"`) starts a session and returns the main menu.
 - The controller owns all navigation. The page only displays `text` and sends the next key.
-- Main menu: `Welcome to MoMoGuard  1 Send Money  2 Report a Scam  3 Scam Alerts  4 Check a Number  5 Language`.
+- Main menu: `Welcome to MoMoGuard  1 Send Money  2 Report a Scam  3 Scam Alerts  5 Language` (item 4
+  — the old "Check a Number" USSD lookup — was removed; numbering is left with a gap rather than
+  renumbered, pending a product decision on the SIM Toolkit's own future menu placement — see
+  `docs/track3-removal-candidates.md` §1.3). Number lookup now lives in the feature-phone app grid's
+  new **SIM Toolkit** app (its own screen, not nested in this dial-code menu) and in the separate
+  Innovate Reps console, both calling `GET /rancard/reverse-lookup`.
 - Send Money flow: recipient → amount → controller assesses → decision screen.
   - `hold` → voice-check screen (questions, keypad answers). `confirm` → "1 Yes 2 No".
   - Result screen: sent / cancelled. A failure is never shown as sent.

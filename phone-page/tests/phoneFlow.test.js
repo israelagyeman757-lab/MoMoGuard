@@ -100,7 +100,7 @@ test("the very-high demo stops the payment and end always exits", () => {
   assert.equal(flow.state.recipient, "");
 });
 
-test("report, alerts, number check, and language screens are reachable", () => {
+test("report, alerts, and language screens are reachable", () => {
   const flow = new PhoneFlow();
   openMain(flow);
   flow.press("2");
@@ -113,26 +113,79 @@ test("report, alerts, number check, and language screens are reachable", () => {
   flow.press("3");
   assert.equal(flow.state.screen, "alerts");
   flow.press("back");
-  flow.press("4");
-  enter(flow, "0240000009");
-  flow.finishNumberCheck();
-  assert.equal(flow.state.screen, "numberResult");
-  assert.equal(flow.state.numberStatus, "reports");
-  flow.press("back");
   flow.press("5");
   flow.press("2");
   assert.equal(flow.state.language, "en");
   assert.match(flow.state.notice, /English is active/);
 });
 
-test("an unavailable number check never claims the number is safe", () => {
+// Grid is 3x3, row-major: row0=[phone,messages,contacts], row1=[calculator,
+// calendar,camera], row2=[settings,tools,simToolkit]. down,down,right,right
+// walks phone(0) -> calculator(3) -> settings(6) -> tools(7) -> simToolkit(8).
+function openSimToolkit(flow) {
+  flow.press("ok");
+  flow.press("down");
+  flow.press("down");
+  flow.press("right");
+  flow.press("right");
+  assert.equal(flow.state.selectedApp, "simToolkit");
+  flow.press("ok");
+}
+
+test("SIM Toolkit is reachable from the app grid and lists its 3 options", () => {
   const flow = new PhoneFlow();
-  openMain(flow);
-  flow.press("4");
-  enter(flow, "0240000004");
-  flow.finishNumberCheck();
-  assert.equal(flow.state.numberStatus, "unavailable");
-  assert.match(flow.state.message, /not proof/i);
+  openSimToolkit(flow);
+  assert.equal(flow.state.screen, "simToolkit");
+});
+
+test("SIM Toolkit option 1 (Learn About Emerging Scams) is a placeholder with no content", () => {
+  const flow = new PhoneFlow();
+  openSimToolkit(flow);
+  flow.press("1");
+  assert.equal(flow.state.screen, "simToolkitLearn");
+  flow.press("back");
+  assert.equal(flow.state.screen, "simToolkit");
+});
+
+test("SIM Toolkit Reverse Number Lookup flags a known demo number (mock mode)", () => {
+  const flow = new PhoneFlow();
+  openSimToolkit(flow);
+  flow.press("2");
+  assert.equal(flow.state.screen, "simToolkitLookup");
+  enter(flow, "0240000009");
+  flow.finishReverseLookup();
+  assert.equal(flow.state.screen, "simToolkitLookupResult");
+  assert.equal(flow.state.reverseLookupStatus, "flagged");
+});
+
+test("SIM Toolkit Reverse Number Lookup never claims an unknown number is safe", () => {
+  const flow = new PhoneFlow();
+  openSimToolkit(flow);
+  flow.press("2");
+  enter(flow, "0209999999");
+  flow.finishReverseLookup();
+  assert.equal(flow.state.reverseLookupStatus, "no_results");
+  assert.match(flow.state.reverseLookupMessage, /not proof/i);
+});
+
+test("a Reverse Number Lookup backend failure shows a clearly-labelled error, not a false clear", () => {
+  const flow = new PhoneFlow();
+  flow.state.reverseLookupNumber = "0240000009";
+  flow.state.screen = "loading";
+  flow.applyReverseLookupError();
+  assert.equal(flow.state.reverseLookupStatus, "error");
+  assert.match(flow.state.reverseLookupMessage, /not proof/i);
+});
+
+test("SIM Toolkit Report a Suspicious Number is a simpler, number-only flow", () => {
+  const flow = new PhoneFlow();
+  openSimToolkit(flow);
+  flow.press("3");
+  assert.equal(flow.state.screen, "simToolkitReport");
+  enter(flow, "0240000005");
+  flow.finishReportSuspiciousNumber();
+  assert.equal(flow.state.screen, "simToolkitReportSent");
+  assert.match(flow.state.reportSuspiciousMessage, /noted as suspected/i);
 });
 
 test("OK opens two apps and navigation changes the selected app", () => {
