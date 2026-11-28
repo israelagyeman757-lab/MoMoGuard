@@ -332,7 +332,9 @@ export class PhoneFlow {
 
   applyReverseLookupResult(result) {
     this.state.reverseLookupStatus = result.status || "no_results";
-    this.state.reverseLookupMessage = result.message || "";
+    this.state.reverseLookupMessage = (
+      result.short_message || result.message || ""
+    );
     this._replace("simToolkitLookupResult");
   }
 

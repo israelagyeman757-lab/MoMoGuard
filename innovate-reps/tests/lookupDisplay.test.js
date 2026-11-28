@@ -10,7 +10,7 @@ test("a flagged result shows a danger tone and carries history + source", () => 
     source: "rancard_stub",
   });
   assert.equal(described.tone, "danger");
-  assert.equal(described.heading, "Flagged by Glance");
+  assert.equal(described.heading, "Elevated Glance signal");
   assert.equal(described.history.length, 1);
   assert.equal(described.source, "rancard_stub");
 });

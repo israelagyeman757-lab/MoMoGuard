@@ -203,10 +203,18 @@ function screenTemplate() {
     case "simToolkitLookup":
       return entryScreen(t("simLookupTitle"), t("simLookupNumber"), "OK to check with Glance.");
     case "simToolkitLookupResult": {
-      const heading = { flagged: "Flagged by Glance", clear: "No threat found", error: "Could not check" }[state.reverseLookupStatus] || "No results";
+      const headingKey = {
+        flagged: "simLookupHeadingFlagged",
+        watch: "simLookupHeadingWatch",
+        clear: "simLookupHeadingClear",
+        error: "simLookupHeadingError",
+        invalid_number: "simLookupHeadingError",
+        no_results: "simLookupHeadingNone",
+      }[state.reverseLookupStatus] || "simLookupHeadingNone";
+      const heading = t(headingKey);
       return `<h2 class="screen-heading">${escapeHtml(heading)}</h2>
         <p class="screen-copy">${escapeHtml(state.reverseLookupMessage)}</p><div class="screen-rule"></div>
-        <p class="screen-small">Back: SIM Toolkit menu</p><div class="screen-source">source: Glance (stub)</div>`;
+        <p class="screen-small">Back: SIM Toolkit menu</p><div class="screen-source">${escapeHtml(t("simLookupNotProof"))}</div>`;
     }
     case "simToolkitReport":
       return entryScreen(t("simReportTitle"), t("simReportNumber"), t("simReportNumberNote"));

@@ -1,7 +1,7 @@
 """Rancard Glance: centralized sandbox reporting + reverse-number lookup.
 
 Reporting (live): POST {base}/api/v1/developer/sandbox/flagged-msisdns/reports
-Lookup: remains stub until Rancard documents a GET path that works for this key.
+Lookup (live): GET {base}/api/v1/developer/sandbox/msisdn/aggregates?msisdn=SYN-####
 See docs/rancard-glance-integration.md.
 """
 
@@ -18,6 +18,11 @@ from datetime import datetime, timezone
 
 _DEFAULT_BASE = "https://glance-api.rancardmobility.com"
 _REPORT_PATH = "/api/v1/developer/sandbox/flagged-msisdns/reports"
+_AGGREGATES_PATH = "/api/v1/developer/sandbox/msisdn/aggregates"
+_DISCLAIMER = (
+    "This is a risk signal from Glance, not a confirmed fraud finding "
+    "and not proof the number is safe or unsafe."
+)
 _IDEMPOTENCY_NS = uuid.UUID("f47ac10b-58cc-4372-a567-0e02b2c3d479")
 
 # Confirmed empirically against the sandbox API (2026-11-28). A fourth value may
@@ -50,13 +55,6 @@ _CANNED_LOOKUP = {
                     "safe or unsafe.",
     },
 }
-
-_LOOKUP_STUB_NOTE = (
-    "No documented Glance reverse-lookup endpoint is available for this "
-    "sandbox key (GET paths under /api/v1/developer/sandbox/ return 401). "
-    "Lookup stays on local stub data until Rancard publishes lookup docs."
-)
-
 
 def _api_key() -> str:
     return (
@@ -115,6 +113,94 @@ def map_simulated_source(channel: str = "") -> str:
 def build_idempotency_key(reporter_id: str, number: str, report_day: str) -> str:
     material = f"{reporter_id}|{number}|{report_day}"
     return str(uuid.uuid5(_IDEMPOTENCY_NS, material))
+
+
+def _risk_band(item: dict) -> tuple[str, str]:
+    """Return (status, risk) without treating anything as confirmed fraud."""
+    color = (item.get("riskColor") or "").upper()
+    level = (item.get("explanation") or {}).get("riskLevel", "")
+    level_u = str(level).upper()
+    if color == "RED" or level_u in ("HIGH", "CRITICAL"):
+        return "flagged", "high"
+    if color == "YELLOW" or level_u in ("MEDIUM", "MODERATE"):
+        return "watch", "caution"
+    if color == "GREEN" or level_u == "LOW":
+        return "watch", "low"
+    return "watch", "unknown"
+
+
+def normalize_aggregates_response(number: str, raw: dict) -> dict:
+    """Map Glance aggregates envelope → MoMoGuard reverse-lookup JSON."""
+    sandbox_msisdn = phone_to_sandbox_msisdn(number)
+    request_id = raw.get("requestId")
+    base = {
+        "number": number,
+        "sandbox_msisdn": sandbox_msisdn,
+        "source": "rancard_live",
+        "glance_request_id": request_id,
+        "glance_code": raw.get("code"),
+        "live_attempted": True,
+    }
+    if not raw.get("success"):
+        msg = raw.get("message") or "Glance lookup failed."
+        return {
+            **base,
+            "status": "error",
+            "risk": "unavailable",
+            "history": [],
+            "message": f"{msg} {_DISCLAIMER}",
+            "short_message": "Could not check. Not proof.",
+        }
+
+    items = (raw.get("data") or {}).get("items") or []
+    if not items:
+        return {
+            **base,
+            "status": "no_results",
+            "risk": "unknown",
+            "history": [],
+            "times_reported": 0,
+            "message": (
+                "No Glance records found for this number. "
+                "That is not proof it is safe."
+            ),
+            "short_message": "No records. Not proof safe.",
+        }
+
+    item = items[0]
+    status, risk = _risk_band(item)
+    times = int(item.get("timesReported") or 0)
+    risk_desc = (item.get("riskDescription") or "").strip()
+    reasons = (item.get("explanation") or {}).get("reasons") or []
+    history = [risk_desc] if risk_desc else []
+    history.extend(f"Signal: {reason}" for reason in reasons if reason)
+
+    headline = (
+        f"Glance shows {times} report(s) for this number"
+        if times else "Glance returned a signal for this number"
+    )
+    message = f"{headline}. {risk_desc} {_DISCLAIMER}".strip()
+
+    color = item.get("riskColor")
+    short = f"{color or '—'}: {times} reports. Not proof."
+
+    return {
+        **base,
+        "status": status,
+        "risk": risk,
+        "history": history,
+        "message": message,
+        "short_message": short,
+        "times_reported": times,
+        "risk_color": item.get("riskColor"),
+        "risk_description": risk_desc,
+        "severity": item.get("severity"),
+        "first_reported": item.get("firstReported"),
+        "last_reported": item.get("lastReported"),
+        "risk_score": item.get("riskScore"),
+        "glance_status": (item.get("explanation") or {}).get("status"),
+        "glance_risk_level": (item.get("explanation") or {}).get("riskLevel"),
+    }
 
 
 class RancardGlancePlug:
@@ -251,54 +337,108 @@ class RancardGlancePlug:
     def _stub_lookup(self, number: str) -> dict:
         canned = _CANNED_LOOKUP.get(number)
         if canned:
-            return {"number": number, **canned, "source": self.source}
+            short = "Flagged in demo data. Not proof."
+            if canned["status"] == "clear":
+                short = "No demo flag. Not proof safe."
+            return {
+                "number": number, **canned, "source": self.source,
+                "short_message": short,
+                "sandbox_msisdn": phone_to_sandbox_msisdn(number),
+            }
         return {
             "number": number, "status": "no_results", "risk": "unknown",
             "history": [],
             "message": "No Glance record found for this number. "
                         "That is not proof it is safe.",
+            "short_message": "No records. Not proof safe.",
+            "sandbox_msisdn": phone_to_sandbox_msisdn(number),
             "source": self.source,
         }
 
     def _live_lookup(self, number: str) -> dict:
-        path = (os.environ.get("RANCARD_GLANCE_LOOKUP_PATH") or "").strip()
-        if not path:
-            stub = self._stub_lookup(number)
-            return {**stub, "live_attempted": False, "live_note": _LOOKUP_STUB_NOTE}
-        # Only reaches here when Israel configures a documented lookup path.
-        base = (os.environ.get("RANCARD_GLANCE_BASE_URL") or _DEFAULT_BASE).rstrip("/")
         api_key = _api_key()
         if not api_key:
-            stub = self._stub_lookup(number)
-            return {**stub, "live_attempted": False, "live_note": _LOOKUP_STUB_NOTE}
+            return {
+                "number": number,
+                "status": "error",
+                "risk": "unavailable",
+                "history": [],
+                "message": (
+                    "Glance lookup is not configured. "
+                    "That is not proof it is safe or unsafe."
+                ),
+                "short_message": "Check unavailable.",
+                "source": "rancard_live",
+                "live_attempted": False,
+            }
 
-        url = base + path
-        if "{number}" in url:
-            mapped = phone_to_sandbox_msisdn(number)
-            url = url.replace("{number}", urllib.parse.quote(mapped, safe=""))
-            url = url.replace("{msisdn}", urllib.parse.quote(mapped, safe=""))
+        msisdn = phone_to_sandbox_msisdn(number)
+        base = (os.environ.get("RANCARD_GLANCE_BASE_URL") or _DEFAULT_BASE).rstrip("/")
+        query = urllib.parse.urlencode({"msisdn": msisdn, "page": "0", "size": "20"})
+        url = f"{base}{_AGGREGATES_PATH}?{query}"
         headers = {"Accept": "application/json", "X-API-Key": api_key}
         timeout_s = float(os.environ.get("RANCARD_GLANCE_TIMEOUT_S", "8"))
         req = urllib.request.Request(url, headers=headers, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=timeout_s) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-            stub = self._stub_lookup(number)
-            stub["status"] = "error"
-            stub["risk"] = "unavailable"
-            stub["message"] = (
-                "Glance could not be reached. That is not proof it is safe or unsafe."
-            )
-            return {**stub, "live_attempted": True, "live_note": _LOOKUP_STUB_NOTE}
+        except urllib.error.HTTPError as e:
+            text = e.read().decode("utf-8", "replace")
+            try:
+                raw = json.loads(text)
+            except json.JSONDecodeError:
+                raw = {"message": text[:200], "success": False}
+            if e.code == 400:
+                return {
+                    "number": number,
+                    "status": "invalid_number",
+                    "risk": "unknown",
+                    "history": [],
+                    "sandbox_msisdn": msisdn,
+                    "message": (
+                        raw.get("message")
+                        or "This number could not be checked in the Glance sandbox."
+                    ) + f" {_DISCLAIMER}",
+                    "short_message": "Invalid for sandbox.",
+                    "source": "rancard_live",
+                    "live_attempted": True,
+                    "glance_code": raw.get("code"),
+                    "http_status": 400,
+                }
+            if e.code == 403:
+                msg = raw.get("message") or "Glance sandbox lookup is server-only."
+            elif e.code == 429:
+                msg = "Glance rate limit reached. Try again in a minute."
+            else:
+                msg = raw.get("message") or f"Glance lookup failed (HTTP {e.code})."
+            return {
+                "number": number,
+                "status": "error",
+                "risk": "unavailable",
+                "history": [],
+                "sandbox_msisdn": msisdn,
+                "message": f"{msg} {_DISCLAIMER}",
+                "short_message": "Could not check.",
+                "source": "rancard_live",
+                "live_attempted": True,
+                "http_status": e.code,
+                "glance_code": raw.get("code"),
+                "glance_request_id": raw.get("requestId"),
+            }
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
+            return {
+                "number": number,
+                "status": "error",
+                "risk": "unavailable",
+                "history": [],
+                "sandbox_msisdn": msisdn,
+                "message": (
+                    "Glance could not be reached. "
+                    "That is not proof it is safe or unsafe."
+                ),
+                "short_message": "Could not check.",
+                "source": "rancard_live",
+                "live_attempted": True,
+            }
 
-        return {
-            "number": number,
-            "status": raw.get("status", "no_results"),
-            "risk": raw.get("risk", "unknown"),
-            "history": raw.get("history") or [],
-            "message": raw.get("message") or "Lookup completed.",
-            "source": "rancard_live",
-            "live_attempted": True,
-            "sandbox_msisdn": phone_to_sandbox_msisdn(number),
-        }
+        return normalize_aggregates_response(number, raw)
