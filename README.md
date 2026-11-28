@@ -74,7 +74,8 @@ controller/            FastAPI controller (all logic lives here)
 supabase/migrations/   SQL schema for Walo Supabase (applied outside CI)
 reports-and-checker/   score checker + sample payments
 tests/                 pytest suite
-phone-page/            feature-phone preview (static, controller-mode by default)
+phone-page/            feature-phone preview (static, controller-mode by default);
+                       SIM Toolkit option 3 is Community Fraud (simulated GH₵5 fee + PIN; no /report)
 innovate-reps/         Innovate Reps smartphone simulator (reporting + Glance lookup)
 demo-control/          operator console feeding simulated SMS/calls into open phone tabs
 ```

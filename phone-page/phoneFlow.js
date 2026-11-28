@@ -1,23 +1,10 @@
 import { getReverseLookupPreview, getPaymentPreview, INITIAL_MESSAGES, makeTransactionMessage, makeControllerReceiptMessage } from "./mockResponses.js";
 
 const ENTRY_SCREENS = new Set(["ussd", "recipient", "amount", "reportNumber",
-  "simToolkitLookup", "simToolkitReport", "simToolkitReportIdentity", "server"]);
+  "simToolkitLookup", "server"]);
 
-export const SIM_TOOLKIT_REPORT_TRICKS = {
-  1: "credential_theft",
-  2: "community_reported",
-  3: "possible_fake_reversal",
-  4: "possible_advance_fee",
-  5: "community_reported",
-};
+export const COMMUNITY_FRAUD_SERVICE_FEE_GHS = 5;
 
-export const SIM_TOOLKIT_REQUEST_TYPES = {
-  1: "pin_or_verification_code",
-  2: "money_transfer",
-  3: "reversal",
-  4: "fee_prize_or_job",
-  5: "other",
-};
 const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calendar", "camera", "settings", "tools", "simToolkit"];
 const ACTIVE_APPS = new Set(["phone", "messages", "simToolkit"]);
 const APP_ENTRY_SCREEN = { phone: "ussd", messages: "messages", simToolkit: "simToolkit" };
@@ -53,12 +40,7 @@ export class PhoneFlow {
       reverseLookupNumber: "",
       reverseLookupStatus: "",
       reverseLookupMessage: "",
-      reportingSuspiciousNumber: "",
-      reportSuspiciousTrick: "community_reported",
-      reportSuspiciousRequestType: "",
-      reportSuspiciousIdentity: "",
-      reportSuspiciousLostMoney: null,
-      reportSuspiciousMessage: "",
+      communityFraudReference: "",
       bigConfirmed: false,
       loadingKind: "",
       serverText: "",
@@ -92,6 +74,11 @@ export class PhoneFlow {
     this.state.incomingCallContact = null;
   }
 
+  _makeSimulatedCommunityFraudReference() {
+    const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `CFG-SIM-${suffix}`;
+  }
+
   _submitEntry() {
     const { screen, entry } = this.state;
     if (screen === "ussd") {
@@ -109,7 +96,7 @@ export class PhoneFlow {
       }
       return;
     }
-    if (!entry && screen !== "simToolkitReportIdentity") {
+    if (!entry) {
       this.state.notice = "Please enter a value.";
       return;
     }
@@ -133,14 +120,6 @@ export class PhoneFlow {
       this.state.entry = "";
       this.state.loadingKind = "reverseLookup";
       this._replace("loading");
-    } else if (screen === "simToolkitReport") {
-      this.state.reportingSuspiciousNumber = entry;
-      this.state.entry = "";
-      this._go("simToolkitReportType");
-    } else if (screen === "simToolkitReportIdentity") {
-      this.state.reportSuspiciousIdentity = entry.trim();
-      this.state.entry = "";
-      this._go("simToolkitReportLost");
     } else if (screen === "server") {
       this.state.serverPendingKey = entry;
       this.state.entry = "";
@@ -165,10 +144,18 @@ export class PhoneFlow {
     }
 
     const { screen } = this.state;
-    if (screen === "pin") {
+    if (screen === "pin" || screen === "simToolkitCommunityFraudPin") {
       if (/^\d$/.test(key)) this.state.pinLength = Math.min(4, this.state.pinLength + 1);
       if (key === "clear") this.state.pinLength = Math.max(0, this.state.pinLength - 1);
-      if (key === "ok" && this.state.pinLength > 0) this._replace("demoComplete");
+      if (key === "ok" && this.state.pinLength > 0) {
+        if (screen === "simToolkitCommunityFraudPin") {
+          this.state.communityFraudReference = this._makeSimulatedCommunityFraudReference();
+          this.state.pinLength = 0;
+          this._replace("simToolkitCommunityFraudSuccess");
+        } else {
+          this._replace("demoComplete");
+        }
+      }
       return;
     }
     if (key === "clear") {
@@ -209,8 +196,15 @@ export class PhoneFlow {
       const destinations = { "1": "recipient", "2": "reportNumber", "3": "alerts", "5": "language" };
       if (destinations[key]) this._go(destinations[key]);
     } else if (screen === "simToolkit") {
-      const destinations = { "1": "simToolkitLearn", "2": "simToolkitLookup", "3": "simToolkitReport" };
+      const destinations = { "1": "simToolkitLearn", "2": "simToolkitLookup", "3": "simToolkitCommunityFraud" };
       if (destinations[key]) this._go(destinations[key]);
+    } else if (screen === "simToolkitCommunityFraud") {
+      if (key === "1") {
+        this.state.pinLength = 0;
+        this.state.entry = "";
+        this._go("simToolkitCommunityFraudPin");
+      }
+      if (key === "2") this.reset();
     } else if (screen === "confirm") {
       if (key === "1") {
         this.state.loadingKind = "payment";
@@ -243,19 +237,6 @@ export class PhoneFlow {
         const a = this.state.voiceAnswers;
         const innocent = a[0] === "3" && ["3", "4"].includes(a[1]) && a[2] === "2" && a[3] === "2" && a[4] === "1";
         this._replace(innocent ? "sent" : "cancelled");
-      }
-    } else if (screen === "simToolkitReportType") {
-      if (SIM_TOOLKIT_REPORT_TRICKS[key]) {
-        this.state.reportSuspiciousTrick = SIM_TOOLKIT_REPORT_TRICKS[key];
-        this.state.reportSuspiciousRequestType = SIM_TOOLKIT_REQUEST_TYPES[key];
-        this._go("simToolkitReportIdentity");
-      }
-    } else if (screen === "simToolkitReportLost") {
-      if (key === "1") this.state.reportSuspiciousLostMoney = true;
-      if (key === "2") this.state.reportSuspiciousLostMoney = false;
-      if (key === "1" || key === "2") {
-        this.state.loadingKind = "reportSuspicious";
-        this._replace("loading");
       }
     } else if (screen === "reportType") {
       if (["1", "2", "3"].includes(key)) this._replace("reportSent");
@@ -317,9 +298,9 @@ export class PhoneFlow {
     this._replace("voiceQuestion");
   }
 
-  // --- SIM Toolkit: Reverse Number Lookup + Report a Suspicious Number ---
+  // --- SIM Toolkit: Reverse Number Lookup + Community Fraud (simulated fee) ---
   // Default (mock-mode) behavior lives here, pure and synchronous, so it's
-  // testable without a controller. app.js overrides this with a real
+  // testable without a controller. app.js overrides reverse lookup with a real
   // controller-backed call when CONFIG.MODE === "controller".
 
   finishReverseLookup() {
@@ -340,40 +321,6 @@ export class PhoneFlow {
       status: "error",
       message: "Could not reach Glance. That is not proof this number is safe or unsafe.",
     });
-  }
-
-  finishReportSuspiciousNumber() {
-    if (this.state.screen !== "loading" || !this.state.reportingSuspiciousNumber) return;
-    this.applyReportSuspiciousResult({
-      message: "Thank you. This number has been noted as suspected.",
-    });
-  }
-
-  buildSuspiciousReportPayload(reporterId) {
-    return {
-      number: this.state.reportingSuspiciousNumber,
-      trick: this.state.reportSuspiciousTrick,
-      reporter_id: reporterId,
-      request_type: this.state.reportSuspiciousRequestType,
-      claimed_identity: this.state.reportSuspiciousIdentity,
-      lost_money: this.state.reportSuspiciousLostMoney,
-      channel: "customer_sim_toolkit",
-    };
-  }
-
-  applyReportSuspiciousResult(result) {
-    const extra = result.report_state
-      ? ` Report status: ${result.report_state.replace(/_/g, " ")} (not proof of a scam).`
-      : "";
-    this.state.reportSuspiciousMessage = (
-      result.message || "Thank you. This number has been noted as suspected."
-    ) + extra;
-    this._replace("simToolkitReportSent");
-  }
-
-  applyReportSuspiciousError() {
-    this.state.message = "Could not reach MoMoGuard. Please try again.";
-    this._replace("error");
   }
 
   // --- Demo-control bridge -------------------------------------------

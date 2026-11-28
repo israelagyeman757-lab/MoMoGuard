@@ -98,27 +98,6 @@ test("reverseLookup uses a query parameter and never a body", async t => {
   t.after(restore);
 });
 
-test("reportSuspiciousNumber posts the SIM Toolkit payload object", async t => {
-  useControllerMode();
-  const calls = stubFetch(() => jsonResponse({ accepted: true }));
-  await adapter.reportSuspiciousNumber({
-    number: "0240000005",
-    trick: "possible_fake_reversal",
-    reporter_id: "0240000001",
-    request_type: "reversal",
-    channel: "customer_sim_toolkit",
-  });
-  assert.equal(calls[0].url, "http://127.0.0.1:8000/report");
-  assert.deepEqual(JSON.parse(calls[0].options.body), {
-    number: "0240000005",
-    trick: "possible_fake_reversal",
-    reporter_id: "0240000001",
-    request_type: "reversal",
-    channel: "customer_sim_toolkit",
-  });
-  t.after(restore);
-});
-
 test("report, resume, assess, confirm, voice-result and reset-demo send contract bodies", async t => {
   useControllerMode();
   const calls = stubFetch(() => jsonResponse({ status: "ok" }));
