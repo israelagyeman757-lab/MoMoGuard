@@ -18,7 +18,7 @@ from controller.ussd import CommunityUssdRouter
 
 
 def create_app(store=None, *, seed: bool = True) -> FastAPI:
-    app = FastAPI(title="MoMoGuard Community", version="1.0.0")
+    app = FastAPI(title="Walo Community", version="1.0.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -36,7 +36,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
         n = normalize_phone(phone)
         reports = db.reports_for_number(n)
         warnings = db.list_warnings(status="published")
-        return {**lookup_result(n, reports, warnings), "phone_number": n, "source": "momoguard_db"}
+        return {**lookup_result(n, reports, warnings), "phone_number": n, "source": "walo_db"}
 
     async def submit_report(payload: dict) -> dict:
         try:
@@ -135,7 +135,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
             **lookup_result(n, reports, warnings),
             "phone_number": n,
             "number_status": (number_row or {}).get("current_status", "unknown"),
-            "source": "momoguard_db",
+            "source": "walo_db",
             "disclaimer": "No reports found does not mean safe.",
         }
 
@@ -145,7 +145,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
             items = db.list_warnings()
         else:
             items = db.list_warnings(status=status)
-        return {"warnings": items, "source": "momoguard_db"}
+        return {"warnings": items, "source": "walo_db"}
 
     @app.post("/warnings")
     async def post_warning(body: dict, authorization: str | None = Header(default=None)):
@@ -277,7 +277,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
         _mod_auth(authorization)
         message = {
             "id": uuid.uuid4().hex[:12],
-            "text": body.get("text", "MoMoGuard alert"),
+            "text": body.get("text", "Walo alert"),
             "more": bool(body.get("more")),
             "report": bool(body.get("report")),
         }
@@ -335,7 +335,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
             "warning_share",
             {"warning_id": warning_id, "title": warning.get("title")},
         )
-        share_text = f"{warning.get('title', 'MoMoGuard warning')}: {warning.get('description', '')}"
+        share_text = f"{warning.get('title', 'Walo warning')}: {warning.get('description', '')}"
         return {
             "share_text": share_text.strip(),
             "warning_id": warning_id,

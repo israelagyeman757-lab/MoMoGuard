@@ -1,11 +1,11 @@
-# MoMoGuard — Community fraud intelligence (hackathon)
+# Walo — Community fraud intelligence (hackathon)
 
 Community-powered mobile money fraud intelligence, education, and early-warning prototype. Track 4 Community (supporting Track 1 Spot It Early). **Does not** block scams, intercept transactions, or recover money.
 
 ## What works
 
 - Community report submit and moderation (SQLite default locally/CI; **Supabase** when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set)
-- Number lookup against **MoMoGuard DB only** (no external Glance/MTN)
+- Number lookup against **Walo DB only** (no external Glance/MTN)
 - Published warnings in USSD simulator and training UI
 - Rule-based training with pre/post 10-question assessments, scores, and recommendations
 - Simulated USSD menu (clearly labelled, not live MTN)
