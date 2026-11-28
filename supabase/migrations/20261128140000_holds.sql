@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.holds (
     status text NOT NULL DEFAULT 'held',
     rep_id text,
     sandbox_txn_ref text,
+    sandbox_ticket text,
     CONSTRAINT holds_status_chk CHECK (status IN ('held', 'released', 'reversed', 'extended')),
     CONSTRAINT holds_risk_chk CHECK (risk_level IN ('LOW', 'MEDIUM', 'HIGH'))
 );

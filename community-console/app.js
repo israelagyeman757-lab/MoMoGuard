@@ -233,6 +233,19 @@ async function loadWarnings() {
   renderWarnings(data.warnings || []);
 }
 
+function formatHoldUntil(iso) {
+  if (!iso) return "—";
+  const dt = new Date(String(iso).includes("Z") ? iso : `${iso}Z`);
+  if (Number.isNaN(dt.getTime())) return "—";
+  const hhmm = dt.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const mins = Math.max(0, Math.round((dt.getTime() - Date.now()) / 60_000));
+  return `${hhmm} (${mins}m left)`;
+}
+
 function renderHolds(holds) {
   const body = document.getElementById("holds_body");
   const empty = document.getElementById("holds_empty");
@@ -249,7 +262,9 @@ function renderHolds(holds) {
       <td>${h.payee_masked || "—"}</td>
       <td>GHS ${Number(h.amount).toFixed(2)}</td>
       <td>${h.risk_level}</td>
-      <td>${h.release_at ? String(h.release_at).slice(0, 16).replace("T", " ") : "—"}</td>
+      <td>${(h.reason_labels && h.reason_labels.en) || "—"}</td>
+      <td>${formatHoldUntil(h.release_at)}</td>
+      <td>${h.status || "held"}</td>
       <td>
         <div class="row-actions">
           <button type="button" class="btn ghost hold-release" data-id="${h.id}">Release</button>
@@ -279,10 +294,10 @@ function renderHolds(holds) {
   });
 }
 
-async function loadHolds() {
+async function loadHolds(status = "held") {
   setLoading("holds_loading", true);
   try {
-    const data = await api("/holds?status=held");
+    const data = await api(`/holds?status=${encodeURIComponent(status)}`);
     renderHolds(data.holds || []);
   } finally {
     setLoading("holds_loading", false);
@@ -392,3 +407,7 @@ ensureDemoLogin(true).then(ok => {
     loadHolds();
   }
 });
+
+if (typeof window !== "undefined") {
+  window.loadHolds = loadHolds;
+}

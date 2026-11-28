@@ -132,13 +132,31 @@ function mockHoldEvaluate(body) {
       amount,
     });
   }
+  const reason_labels = {
+    en: reasons
+      .map(code => ({
+        new_number_pair: "First payment from this number to you",
+        flagged_high: "Number reported to Walɔ",
+        amount_above_500_ghs: "Large amount (over GHS 500)",
+      })[code])
+      .filter(Boolean)
+      .join("; ") || "Funds temporarily held by Walɔ",
+    tw: reasons
+      .map(code => ({
+        new_number_pair: "Ɛnyɛ daa sika a wɔde aba wo nɔma yi so",
+        flagged_high: "Wɔde nɔma no amanneɛ ama Walɔ",
+        amount_above_500_ghs: "Sika dodow (GHS 500 so)",
+      })[code])
+      .filter(Boolean)
+      .join("; ") || "Walɔ agye sika no daa kakra",
+  };
   return {
     ok: true,
     data: {
       hold,
       minutes,
       risk_level: risk,
-      reasons,
+      reason_labels,
       hold_id: hold ? 1 : null,
     },
   };
@@ -147,12 +165,22 @@ function mockHoldEvaluate(body) {
 function mockWithdrawCheck(phone) {
   const row = mockHolds.get(phone);
   if (!row) return { ok: true, data: { allow: true } };
+  const codes = row.reasons || [];
   return {
     ok: true,
     data: {
       allow: false,
       release_at: row.release_at,
-      reason: row.reasons.join("; ") || "funds_held",
+      reason_labels: {
+        en: codes
+          .map(c => ({
+            new_number_pair: "First payment from this number to you",
+            flagged_high: "Number reported to Walɔ",
+          })[c])
+          .filter(Boolean)
+          .join("; ") || "Funds temporarily held by Walɔ",
+        tw: "Walɔ agye sika no daa kakra",
+      },
       amount: row.amount,
     },
   };

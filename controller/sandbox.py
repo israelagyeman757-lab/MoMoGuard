@@ -42,9 +42,69 @@ def sandbox_post(path: str, payload: dict[str, Any]) -> dict | None:
         return {"error": str(exc)}
 
 
-def care_reverse_hold(*, msisdn: str, txn_ref: str | None = None) -> dict | None:
-    """Best-effort care action after rep reverse; parameters may need tuning on live sandbox."""
-    payload: dict[str, Any] = {"action": "return_funds", "msisdn": msisdn}
-    if txn_ref:
-        payload["txn"] = txn_ref
-    return sandbox_post("s/care/mtn", payload)
+def _ticket_id(response: dict | None) -> str | None:
+    if not response or response.get("error"):
+        return None
+    for key in ("ticket", "ticketId", "ticket_id", "id"):
+        val = response.get(key)
+        if val is not None and str(val).strip():
+            return str(val)
+    data = response.get("data")
+    if isinstance(data, dict):
+        for key in ("ticket", "ticketId", "id"):
+            val = data.get(key)
+            if val is not None:
+                return str(val)
+    return None
+
+
+def register_sandbox_dispute_hold(
+    *,
+    sender_msisdn: str,
+    txn_id: str,
+    amount: float,
+    description: str = "Walɔ withdrawal hold — wrong transfer protection",
+) -> str | None:
+    """
+    Sandbox care flow when a hold is recorded (backend owns timer):
+    (a) open_ticket → (b) hold on ticket amount.
+    """
+    if not team_key_configured():
+        return None
+    opened = sandbox_post(
+        "s/care/mtn",
+        {
+            "action": "open_ticket",
+            "msisdn": sender_msisdn,
+            "category": "wrong_transfer",
+            "txnId": txn_id,
+            "description": description,
+            "verified": "yes",
+        },
+    )
+    ticket = _ticket_id(opened)
+    if not ticket:
+        return None
+    sandbox_post(
+        "s/care/mtn",
+        {
+            "action": "hold",
+            "ticket": ticket,
+            "amount": amount,
+        },
+    )
+    return ticket
+
+
+def complete_sandbox_reversal(*, ticket: str | None, txn_id: str | None) -> dict | None:
+    """Rep reverse: (c) return_funds, else fallback telco reverse by txnId."""
+    if not team_key_configured():
+        return None
+    if ticket:
+        return sandbox_post("s/care/mtn", {"action": "return_funds", "ticket": ticket})
+    if txn_id:
+        return sandbox_post(
+            "s/telco/mtn",
+            {"action": "reverse", "txnId": txn_id},
+        )
+    return None

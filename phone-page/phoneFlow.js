@@ -3,7 +3,7 @@ import { APPS, STK_MENU, REPORT_TYPES, CONTACTS, CALL_LOG, SEND_DEMO_PAYERS } fr
 import { CONFIG } from "./config.js";
 import { INBOX, checkNumber as mockCheckNumber } from "./mock.js";
 import { softKeysFor } from "./softKeys.js";
-import { t } from "./i18n/i18n.js";
+import { t, getLocale } from "./i18n/i18n.js";
 
 const MAX_REPORT_TYPES = REPORT_TYPES.length;
 
@@ -533,11 +533,17 @@ export class PhoneFlow {
         const demo = SEND_DEMO_PAYERS[this.state.sendDemo.pickIndex];
         const minutes = result.data.minutes || 0;
         const amount = this.state.sendDemo.amount || "100";
+        const loc = getLocale() === "tw" ? "tw" : "en";
+        const reasonLine = (result.data.reason_labels || {})[loc] || "";
         const smsKey =
           demo?.id === "flagged" ? "send.smsHeldFlagged" : "send.smsHeld";
         this.state.inbox.unshift({
           from: "Walɔ",
-          text: t(smsKey, { amount, minutes: demo?.id === "flagged" ? 1440 : minutes }),
+          text: t(smsKey, {
+            amount,
+            minutes: demo?.id === "flagged" ? 1440 : minutes,
+            reasonLine,
+          }),
           time: "now",
           unread: true,
           tag: "hold",

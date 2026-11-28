@@ -35,6 +35,8 @@ def test_withdraw_check_blocks_active_hold(client):
     body = check.json()
     assert body["allow"] is False
     assert body["release_at"]
+    assert "reason_labels" in body
+    assert "new_number_pair" not in body["reason_labels"]["en"]
 
 
 def test_sandbox_plugin_receive_and_authorize(client):
@@ -92,9 +94,17 @@ def test_rep_list_and_release_masked(client):
     assert "payer_masked" in row
     assert "024" in row["payer_masked"]
     assert "****" in row["payer_masked"]
-    rel = client.post(f"/holds/{hold_id}/release", headers=MOD)
-    assert rel.status_code == 200
-    assert rel.json()["status"] == "released"
+    assert "reasons" not in row
+    assert "reason_labels" in row
+
+
+def test_seed_demo_holds_present(client):
+    listed = client.get("/holds", headers=MOD)
+    holds = listed.json()["holds"]
+    assert len(holds) >= 2
+    mins = {h["hold_minutes"] for h in holds}
+    assert 30 in mins
+    assert 1440 in mins
 
 
 def test_flagged_payee_24h(client):

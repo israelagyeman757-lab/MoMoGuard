@@ -140,7 +140,8 @@ CREATE TABLE IF NOT EXISTS holds (
     release_at TEXT,
     status TEXT NOT NULL DEFAULT 'held',
     rep_id TEXT,
-    sandbox_txn_ref TEXT
+    sandbox_txn_ref TEXT,
+    sandbox_ticket TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_holds_payee_status ON holds(payee, status);
@@ -688,8 +689,8 @@ class MoMoGuardStore:
             """
             INSERT INTO holds (
                 payer, payee, amount, risk_level, reasons, hold_minutes,
-                created_at, release_at, status, sandbox_txn_ref
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'held', ?)
+                created_at, release_at, status, sandbox_txn_ref, sandbox_ticket
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'held', ?, ?)
             """,
             (
                 normalize_phone(data["payer"]),
@@ -701,6 +702,7 @@ class MoMoGuardStore:
                 created_at,
                 release_at,
                 data.get("sandbox_txn_ref"),
+                data.get("sandbox_ticket"),
             ),
         )
         self._conn.commit()
@@ -813,7 +815,15 @@ class MoMoGuardStore:
             "status": row["status"],
             "rep_id": row["rep_id"],
             "sandbox_txn_ref": row["sandbox_txn_ref"],
+            "sandbox_ticket": row["sandbox_ticket"],
         }
+
+    def update_hold_sandbox_ticket(self, hold_id: int, ticket: str | None) -> None:
+        self._conn.execute(
+            "UPDATE holds SET sandbox_ticket=? WHERE id=?",
+            (ticket, hold_id),
+        )
+        self._conn.commit()
 
     def overview_stats(self) -> dict:
         reports = self._conn.execute(

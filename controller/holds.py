@@ -9,8 +9,9 @@ from typing import Any, Callable
 from fastapi import APIRouter, Header, HTTPException
 
 from controller.auth import require_moderator
+from controller.hold_reasons import join_labels, reason_labels_payload
 from controller.hold_rules import build_evaluate_input, compute_duration
-from controller.sandbox import care_reverse_hold
+from controller.sandbox import complete_sandbox_reversal, register_sandbox_dispute_hold
 
 
 def mask_phone(phone: str) -> str:
@@ -24,8 +25,10 @@ def _mask_hold(row: dict) -> dict:
     out = dict(row)
     out["payer_masked"] = mask_phone(row.get("payer", ""))
     out["payee_masked"] = mask_phone(row.get("payee", ""))
+    out["reason_labels"] = reason_labels_payload(out.get("reasons"))
     out.pop("payer", None)
     out.pop("payee", None)
+    out.pop("reasons", None)
     return out
 
 
@@ -78,12 +81,21 @@ class HoldsService:
                 }
             )
             hold_id = hold["id"]
+            txn_ref = body.get("sandbox_txn_ref")
+            if txn_ref and hold_id:
+                ticket = register_sandbox_dispute_hold(
+                    sender_msisdn=inp.payer,
+                    txn_id=str(txn_ref),
+                    amount=float(inp.amount),
+                )
+                if ticket:
+                    self.db.update_hold_sandbox_ticket(hold_id, ticket)
         self.db.record_pair_payment(inp.payer, inp.payee)
         return {
             "hold": result.hold,
             "minutes": result.minutes,
             "risk_level": result.risk_level,
-            "reasons": result.reasons,
+            "reason_labels": reason_labels_payload(result.reasons),
             "hold_id": hold_id,
         }
 
@@ -93,17 +105,18 @@ class HoldsService:
         if not active:
             return {"allow": True}
         release_at = active.get("release_at")
+        labels = reason_labels_payload(active.get("reasons"))
         return {
             "allow": False,
             "release_at": release_at,
-            "reason": "; ".join(active.get("reasons") or []) or "funds_held",
+            "reason_labels": labels,
             "hold_id": active.get("id"),
             "amount": active.get("amount"),
         }
 
-    def list_holds(self, *, status: str | None = None) -> list[dict]:
+    def list_holds(self, *, status: str | None = "held") -> list[dict]:
         _expire_lazy(self.db)
-        rows = self.db.list_holds(status=status or "held")
+        rows = self.db.list_holds(status=status)
         return [_mask_hold(r) for r in rows]
 
     def release(self, hold_id: int, rep_id: str | None) -> dict:
@@ -124,11 +137,10 @@ class HoldsService:
         if not row:
             raise HTTPException(status_code=404, detail="not found")
         updated = self.db.update_hold_status(hold_id, "reversed", rep_id=rep_id)
-        if row.get("sandbox_txn_ref"):
-            care_reverse_hold(
-                msisdn=row.get("payee", ""),
-                txn_ref=row.get("sandbox_txn_ref"),
-            )
+        complete_sandbox_reversal(
+            ticket=row.get("sandbox_ticket"),
+            txn_id=row.get("sandbox_txn_ref"),
+        )
         return _mask_hold(updated)
 
 
@@ -158,7 +170,8 @@ def register_holds_routes(app_router: APIRouter, db: Any) -> None:
         status: str | None = "held",
     ):
         mod_auth(authorization)
-        return {"holds": svc.list_holds(status=status)}
+        st = None if (status or "").lower() == "all" else (status or "held")
+        return {"holds": svc.list_holds(status=st)}
 
     @app_router.post("/holds/{hold_id}/release")
     async def post_release(
@@ -209,13 +222,16 @@ def handle_sandbox_plugin(
                 ),
                 "sim_swap_recent": _sim_swap_recent((payload.get("payer") or {}).get("lastSimSwapAt")),
                 "different_payers_24h": (payload.get("payee") or {}).get("differentPayersInLast24Hours"),
-                "sandbox_txn_ref": payload.get("transactionId") or payload.get("referenceId"),
+                "sandbox_txn_ref": _sandbox_txn_ref(payload),
             }
         )
         return {"decision": "allow", "message": "Walɔ recorded hold policy"}
 
     if point == "payment.authorize":
         payer = (payload.get("payer") or {}).get("msisdn", "")
+        if not payer:
+            return {"decision": "allow", "message": "Walɔ clear"}
+        # Cash-out and P2P authorize: block when this wallet (payer) has an active hold row.
         check = withdraw_check(payer)
         if check.get("allow"):
             return {"decision": "allow", "message": "Walɔ clear"}
@@ -223,8 +239,9 @@ def handle_sandbox_plugin(
         remaining = _minutes_until(release_at)
         if remaining <= 0:
             return {"decision": "allow", "message": "Hold expired"}
-        msg = (check.get("reason") or "Funds held")[:150]
-        return {"decision": "delay", "minutes": remaining, "message": msg}
+        labels = check.get("reason_labels") or {}
+        msg = (labels.get("en") or "Funds temporarily held by Walɔ")[:150]
+        return {"decision": "delay", "minutes": max(1, remaining), "message": msg}
 
     return {"decision": "allow", "message": "Walɔ carry on"}
 
@@ -241,6 +258,13 @@ def _sim_swap_recent(last_swap: str | None) -> bool:
     if not dt:
         return False
     return (_utcnow() - dt.astimezone(timezone.utc)) < timedelta(hours=24)
+
+
+def _sandbox_txn_ref(payload: dict[str, Any]) -> str | None:
+    ref = payload.get("transactionId") or payload.get("referenceId") or payload.get("txnId")
+    if ref:
+        return str(ref)
+    return None
 
 
 def _minutes_until(release_at: str | None) -> int:

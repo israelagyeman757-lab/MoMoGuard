@@ -265,9 +265,12 @@ function bodyMarkup() {
         return `${header("header.withdraw")}<div class="copy">${esc(t("withdraw.clear"))}</div>`;
       }
       const time = flow.formatReleaseShort(w.release_at);
+      const loc = getLocale() === "tw" ? "tw" : "en";
+      const reasonLine = (w.reason_labels || {})[loc] || "";
       return `${header("header.withdraw")}
         <div class="copy">${esc(t("withdraw.blocked", { time }))}</div>
-        <div class="hint">${esc(t("withdraw.reason", { reason: w.reason || "" }))}</div>`;
+        <div class="hint">${esc(t("withdraw.reasonLine", { reasonLine }))}</div>
+        <div class="hint">${esc(t("withdraw.reversalHelp"))}</div>`;
     }
     case "stkCheckInput":
       return `${header("header.check")}${entryBlock({ hint: t("check.hint"), notice: s.notice })}`;

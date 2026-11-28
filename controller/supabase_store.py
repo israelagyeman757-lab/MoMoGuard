@@ -651,6 +651,7 @@ class SupabaseStore:
                 "release_at": release_at,
                 "status": "held",
                 "sandbox_txn_ref": data.get("sandbox_txn_ref"),
+                "sandbox_ticket": data.get("sandbox_ticket"),
             },
         )
         return self._hold_row(row or {})
@@ -775,7 +776,15 @@ class SupabaseStore:
             "status": row["status"],
             "rep_id": row.get("rep_id"),
             "sandbox_txn_ref": row.get("sandbox_txn_ref"),
+            "sandbox_ticket": row.get("sandbox_ticket"),
         }
+
+    def update_hold_sandbox_ticket(self, hold_id: int, ticket: str | None) -> None:
+        self._rest.patch(
+            "holds",
+            {"id": f"eq.{hold_id}"},
+            {"sandbox_ticket": ticket},
+        )
 
     def overview_stats(self) -> dict:
         reports = self._rest.select("reports")

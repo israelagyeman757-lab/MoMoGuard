@@ -92,10 +92,55 @@ def seed_demo(store: Any, *, reset: bool = True) -> None:
             "loss_reported": False,
         }
     )
+    for r in store.list_reports(phone_number=DEMO_SCAM_NUMBER):
+        store.update_report_status(r["id"], "CORROBORATED")
+
+    seed_demo_holds(store)
+
+
+DEMO_WALLET_MSISDN = "0244111222"
+
+
+def seed_demo_holds(store: Any) -> None:
+    """Two active demo holds for console screenshots: 30m new pair + 24h flagged."""
+    if not hasattr(store, "insert_hold"):
+        return
+    active = store.list_holds(status="held")
+    if len(active) >= 2:
+        return
+    store.insert_hold(
+        {
+            "payer": "0245000111",
+            "payee": DEMO_WALLET_MSISDN,
+            "amount": 100,
+            "risk_level": "MEDIUM",
+            "reasons": ["new_number_pair"],
+            "hold_minutes": 30,
+        }
+    )
+    store.insert_hold(
+        {
+            "payer": "0244888100",
+            "payee": DEMO_SCAM_NUMBER,
+            "amount": 350,
+            "risk_level": "HIGH",
+            "reasons": ["flagged_high"],
+            "hold_minutes": 1440,
+        }
+    )
+
+
+def ensure_demo_holds(store: Any) -> None:
+    if not hasattr(store, "list_holds"):
+        return
+    if len(store.list_holds(status="held")) >= 2:
+        return
+    seed_demo_holds(store)
 
 
 def ensure_demo_seed(store: Any) -> None:
     """Load fictional demo data once (idempotent for durable Supabase startup)."""
     if store.get_user("mod-001"):
+        ensure_demo_holds(store)
         return
     seed_demo(store, reset=False)
