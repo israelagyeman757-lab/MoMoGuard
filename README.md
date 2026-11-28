@@ -6,6 +6,8 @@ InnoFemme Hack for Equity, KNUST, 26–28 Nov 2026.
 Safe payments go through untouched. Risky ones are paused just long enough for a safety check.
 Nothing here moves real money — the bank, network, call-log and reputation data are **simulated** and labelled as such until the organisers' sandbox arrives.
 
+Community scam reports (`POST /report`, `GET /community/intelligence`) persist through `controller/community/`: **SQLite by default** (in-memory unless `COMMUNITY_SQLITE_PATH` is set). Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in a local `.env` to use the hosted Supabase project (**Walo**, ref `ytukecpastecnvlikait`); apply `supabase/migrations/20261128100000_init.sql` via the Supabase connector. Never commit keys.
+
 **Read [CONTRACT.md](CONTRACT.md) first** if you are building the phone page or scoreboard against this controller.
 
 ## Start (3 commands)
@@ -66,8 +68,10 @@ controller/            FastAPI controller (all logic lives here)
   pause_manager.py     single-use paused-payment references, asyncio expiry
   metrics.py           scoreboard metrics + audit log
   brain/               risk scoring (settings.json holds all tunable numbers)
+  community/           Community report persistence (SQLite default, Supabase opt-in)
   plugs/               BankPlug (pretend bank), DataPlug/GlancePlug/NetworkPlug stubs
                        MtnMomoBankPlug (real MTN MoMo hackathon sandbox, opt-in)
+supabase/migrations/   SQL schema for Walo Supabase (applied outside CI)
 reports-and-checker/   score checker + sample payments
 tests/                 pytest suite
 phone-page/            feature-phone preview (static, controller-mode by default)

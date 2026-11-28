@@ -8,6 +8,9 @@ response is labelled simulated. Reports are suspected, never proof.
 import hashlib
 from datetime import datetime, timedelta, timezone
 
+from controller.community import create_community_store
+from controller.community.store import CommunityStore
+
 # Demo salt for pseudonymous reporter IDs (simulated; not a production secret).
 _REPORTER_SALT = "momoguard-demo-salt"
 
@@ -28,11 +31,12 @@ def _hash_reporter(reporter_id: str) -> str:
 class GlancePlug:
     source = "simulated"
 
-    def __init__(self):
+    def __init__(self, store: CommunityStore | None = None):
+        self._store = store if store is not None else create_community_store()
         self.reset()
 
     def reset(self) -> None:
-        self._local: list[dict] = []
+        self._store.reset()
 
     def check(self, number: str) -> dict:
         canned = CANNED_REPUTATION.get(number)
@@ -70,19 +74,24 @@ class GlancePlug:
         hashed = _hash_reporter(reporter_id)
         ts = datetime.now(timezone.utc) - timedelta(days=age_days)
         day = ts.date().isoformat()
-        for r in self._local:
-            if r["number"] == number and r["reporter_id"] == hashed and r["day"] == day:
-                return {"accepted": False,
-                        "message": "You already reported this number today."}
-        self._local.append({"ts": ts.isoformat(timespec="seconds"), "day": day,
-                            "reporter_id": hashed, "number": number, "trick": trick,
-                            "description": description, "community": community,
-                            "incident_time": incident_time,
-                            "claimed_identity": (claimed_identity or "").strip(),
-                            "request_type": (request_type or "").strip(),
-                            "lost_money": lost_money,
-                            "channel": (channel or "").strip(),
-                            "verification_state": "unverified"})
+        row = {
+            "ts": ts.isoformat(timespec="seconds"),
+            "day": day,
+            "reporter_id": hashed,
+            "number": number,
+            "trick": trick,
+            "description": description,
+            "community": community,
+            "incident_time": incident_time,
+            "claimed_identity": (claimed_identity or "").strip(),
+            "request_type": (request_type or "").strip(),
+            "lost_money": lost_money,
+            "channel": (channel or "").strip(),
+            "verification_state": "unverified",
+        }
+        if not self._store.insert_report(row):
+            return {"accepted": False,
+                    "message": "You already reported this number today."}
         summary = self._classification_for_number(number)
         return {"accepted": True,
                 "message": "Thank you. This number has been noted as suspected.",
@@ -92,10 +101,10 @@ class GlancePlug:
                 "classification_note": summary["message"]}
 
     def local_reports(self) -> list[dict]:
-        return list(self._local)
+        return self._store.list_reports()
 
     def reports_for_number(self, number: str) -> list[dict]:
-        return [r for r in self._local if r["number"] == number]
+        return self._store.reports_for_number(number)
 
     def _classification_for_number(self, number: str) -> dict:
         """PRD §3: distinguish report confidence bands — never treat one report as proof."""
@@ -143,9 +152,7 @@ class GlancePlug:
         """Reports fade: weight halves every 30 days, gone after 90."""
         now = datetime.now(timezone.utc)
         total = 0.0
-        for r in self._local:
-            if r["number"] != number:
-                continue
+        for r in self.reports_for_number(number):
             age = (now - datetime.fromisoformat(r["ts"])).total_seconds() / 86400
             if age > 90:
                 continue
