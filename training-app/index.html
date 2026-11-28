@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoMoGuard Training</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header>
+    <h1>Learn to spot MoMo scams</h1>
+    <p>Large text, simple steps. We never ask for your PIN or OTP.</p>
+  </header>
+  <main>
+    <section class="card">
+      <label>Your name <input id="user_name" value="Ama" /></label>
+      <button id="start_pre" type="button">Start pre-test (10 questions)</button>
+      <button id="start_post" type="button">Start post-test</button>
+      <button id="view_history" type="button">View my scores</button>
+    </section>
+    <section class="card" id="quiz_card" hidden>
+      <p id="progress"></p>
+      <h2 id="question_text"></h2>
+      <div id="options"></div>
+      <p id="feedback" class="feedback"></p>
+      <button id="next_q" type="button" hidden>Next</button>
+    </section>
+    <section class="card">
+      <h2>Recommended for you</h2>
+      <ul id="recommendations"></ul>
+    </section>
+    <pre id="history"></pre>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

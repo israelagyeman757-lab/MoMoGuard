@@ -23,12 +23,12 @@
       "destination": "/phone-page/index.html"
     },
     {
-      "source": "/innovate-reps",
-      "destination": "/innovate-reps/index.html"
+      "source": "/training-app",
+      "destination": "/training-app/index.html"
     },
     {
-      "source": "/demo-control",
-      "destination": "/demo-control/index.html"
+      "source": "/community-console",
+      "destination": "/community-console/index.html"
     }
   ]
 }

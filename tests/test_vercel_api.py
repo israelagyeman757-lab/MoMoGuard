@@ -12,9 +12,9 @@ _spec.loader.exec_module(_mod)
 
 def test_vercel_entry_serves_controller_under_api_prefix():
     with TestClient(_mod.app) as client:
-        metrics = client.get("/api/metrics")
-        assert metrics.status_code == 200
-        assert metrics.json().get("source") == "simulated"
+        health = client.get("/api/health")
+        assert health.status_code == 200
+        assert health.json().get("status") == "ok"
 
         docs = client.get("/api/docs")
         assert docs.status_code == 200

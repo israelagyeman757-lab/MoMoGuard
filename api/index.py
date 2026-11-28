@@ -13,8 +13,7 @@ from fastapi import FastAPI
 
 from controller.app import create_app
 
-_pause_s = float(os.environ.get("PAUSE_TIMEOUT_S", "180"))
-_controller = create_app(pause_timeout_s=_pause_s)
+_controller = create_app()
 
-app = FastAPI(title="MoMoGuard API gateway", version="0.2")
+app = FastAPI(title="MoMoGuard API gateway", version="1.0")
 app.mount("/api", _controller)
