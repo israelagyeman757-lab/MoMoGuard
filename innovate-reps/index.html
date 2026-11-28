@@ -3,14 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#3f2118">
-  <meta name="description" content="MoMoGuard Innovate Reps smartphone simulator: report scams, Glance lookup, Phone and Messages.">
-  <title>MoMoGuard — Innovate Reps smartphone</title>
+  <meta name="theme-color" content="#D32F2F">
+  <meta name="description" content="MoMoGuard Innovate Reps — Walo community rep console on a smartphone shell.">
+  <title>MoMoGuard — Innovate Reps · Walo</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="marble-vein marble-vein-one" aria-hidden="true"></div>
-  <div class="marble-vein marble-vein-two" aria-hidden="true"></div>
   <div id="demo_toast" class="demo-toast" role="status" aria-live="polite"></div>
 
   <header class="page-header">
@@ -20,109 +18,38 @@
       </span>
       <span>MoMoGuard<span class="brand-dot">.</span></span>
     </div>
-    <span class="header-tag">Innovate Reps · Smartphone</span>
+    <span class="header-tag">Innovate Reps · Walo</span>
   </header>
 
   <main class="showcase">
     <section class="intro" aria-labelledby="page-title">
-      <p class="eyebrow">COMMUNITY REPRESENTATIVES</p>
-      <h1 id="page-title">Report and look up.<br><em>On a familiar phone.</em></h1>
-      <p class="intro-copy">A modern smartphone shell for community reps — Phone, Messages, and the Innovate Reps console in one framed device.</p>
-      <p class="intro-copy"><a href="../demo-control/index.html" target="_blank" rel="noopener">Open demo-control ↗</a> to send simulated SMS and calls into this phone (and the feature-phone preview).</p>
-      <p class="intro-copy"><a href="../phone-page/index.html" target="_blank" rel="noopener">Feature-phone customer preview ↗</a></p>
+      <h1 id="page-title">Community rep smartphone</h1>
+      <p class="intro-copy">Dock: Phone, Messages, Walo. Simulated SMS and calls from
+        <a href="../demo-control/index.html" target="_blank" rel="noopener">demo-control ↗</a>.</p>
     </section>
 
     <section class="phone-stage" aria-label="Innovate Reps smartphone simulator">
       <div class="phone-shadow" aria-hidden="true"></div>
       <div class="smartphone" id="smartphone">
         <div class="smartphone-bezel">
-          <div class="smartphone-notch" aria-hidden="true"></div>
           <div class="smartphone-status">
             <span class="status-time" id="status_time">09:41</span>
-            <span class="status-network" aria-label="Network"><i></i><i></i><i></i><i></i></span>
-            <span class="status-battery" aria-label="Battery"><i></i></span>
+            <span><span class="status-network" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span id="status_battery">84%</span></span>
           </div>
           <div class="smartphone-screen" id="smartphone_screen">
-            <div id="shell_home" class="shell-layer shell-home" hidden></div>
-            <div id="shell_phone" class="shell-layer shell-app" hidden></div>
-            <div id="shell_messages" class="shell-layer shell-app" hidden></div>
-            <div id="shell_innovate_reps" class="shell-layer shell-app shell-reps" hidden>
-              <div class="reps-app-scroll">
-                <section class="tab-panel is-active" id="tab_actions" aria-labelledby="actions-heading">
-                  <div class="panel-card">
-                    <h2 id="actions-heading">Report a Scam</h2>
-                    <p class="panel-hint">Reports feed the community intelligence system shared with SIM Toolkit reporting.</p>
-                    <form id="report_form" novalidate>
-                      <div class="field" id="field_number">
-                        <label for="report_number">Phone number</label>
-                        <input id="report_number" name="number" type="text" inputmode="tel" placeholder="e.g. 0240000009" autocomplete="off">
-                        <p class="field-error" id="error_number"></p>
-                      </div>
-                      <div class="field" id="field_time">
-                        <label for="report_time">When did this happen? (optional)</label>
-                        <input id="report_time" name="time" type="text" placeholder="e.g. this morning" autocomplete="off">
-                      </div>
-                      <div class="field" id="field_community">
-                        <label for="report_community">Your community</label>
-                        <input id="report_community" name="community" type="text" placeholder="e.g. Madina" autocomplete="off">
-                        <p class="field-error" id="error_community"></p>
-                      </div>
-                      <div class="field" id="field_description">
-                        <label for="report_description">What happened?</label>
-                        <textarea id="report_description" name="description" placeholder="Describe the suspected scam"></textarea>
-                        <p class="field-error" id="error_description"></p>
-                      </div>
-                      <button type="submit" class="report-button" id="report_submit">REPORT</button>
-                      <p class="status-banner" id="report_status" role="status"></p>
-                    </form>
-                  </div>
-                  <div class="panel-card">
-                    <h2>Reverse Number Lookup</h2>
-                    <p class="panel-hint">Glance (Rancard stub) — credentials stay on the server.</p>
-                    <div class="lookup-row">
-                      <input id="lookup_number" type="text" inputmode="tel" placeholder="Phone number to check" autocomplete="off">
-                      <button type="button" id="lookup_submit">Look up</button>
-                    </div>
-                    <p class="status-banner" id="lookup_status" role="status"></p>
-                    <div class="lookup-result" id="lookup_result" role="region" aria-live="polite">
-                      <h3 id="lookup_heading"></h3>
-                      <p id="lookup_message"></p>
-                      <ul id="lookup_history"></ul>
-                      <span class="lookup-source" id="lookup_source"></span>
-                    </div>
-                  </div>
-                </section>
-                <section class="tab-panel" id="tab_profile" aria-labelledby="profile-heading">
-                  <div class="panel-card profile-placeholder">
-                    <h2 id="profile-heading">Profile</h2>
-                    <dl>
-                      <dt>Name</dt><dd>Representative (demo)</dd>
-                      <dt>Rep ID</dt><dd id="profile_rep_id">…</dd>
-                      <dt>Community</dt><dd>Not set — assign in a future auth build</dd>
-                      <dt>Settings</dt><dd>Notifications, language — coming soon</dd>
-                    </dl>
-                    <p class="placeholder-note">Placeholder only — no real accounts yet.</p>
-                    <button type="button" class="logout-button" id="logout_button">Log out</button>
-                  </div>
-                </section>
-              </div>
-              <nav class="bottom-nav" aria-label="Innovate Reps sections">
-                <button type="button" id="nav_actions" class="is-active" data-tab="actions">Actions</button>
-                <button type="button" id="nav_profile" data-tab="profile">Profile</button>
-              </nav>
-            </div>
+            <div id="shell_home" class="shell-layer shell-home"></div>
+            <div id="shell_phone" class="shell-layer" hidden></div>
+            <div id="shell_messages" class="shell-layer" hidden></div>
+            <div id="shell_walo" class="shell-layer" hidden></div>
           </div>
-          <button type="button" class="home-bar" id="home_button" aria-label="Home">
-            <span aria-hidden="true"></span>
-          </button>
         </div>
       </div>
     </section>
   </main>
 
   <footer class="page-footer">
-    <span>Built for community intelligence.</span>
-    <span id="footer_note">Controller: http://127.0.0.1:8000 · Simulated</span>
+    <span>Reports → community intelligence · Lookups → Glance (stub)</span>
+    <span id="footer_note">Controller: http://127.0.0.1:8000</span>
   </footer>
   <script type="module" src="./app.js"></script>
 </body>
