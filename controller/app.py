@@ -1,352 +1,243 @@
-"""MoMoGuard controller: owns the menus, the brain, the pause manager, the plugs.
+"""MoMoGuard Community API — FastAPI backend for hackathon blueprint."""
 
-Run: python -m uvicorn controller.app:app --port 8000
-"""
+from __future__ import annotations
 
 import os
-import uuid
-from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from controller.brain.scoring import amount_in_words, assess_payment, load_settings, needs_confirm
-from controller.metrics import MetricsStore
-from controller.pause_manager import PauseManager
-from controller.plugs.bank_plug import BankPlug
-from controller.plugs.data_plug import DataPlug
-from controller.plugs.glance_plug import GlancePlug
-from controller.plugs.mtn_momo_bank_plug import MtnMomoBankPlug
-from controller.plugs.network_plug import NetworkPlug
-from controller.plugs.rancard_glance_plug import RancardGlancePlug
-from controller.ussd import UssdRouter
-
-SOURCES = {"bank": "simulated", "network": "simulated",
-           "calls": "simulated", "glance": "simulated"}
+from controller.auth import require_moderator
+from controller.momoguard_store import MoMoGuardStore, validate_phone, normalize_phone
+from controller.patterns import find_similar_reports, lookup_result
+from controller.seed import seed_demo
+from controller.store_factory import create_store
+from controller.ussd import CommunityUssdRouter
 
 
-def _make_bank_plug():
-    """BANK_PLUG_MODE=mtn_sandbox switches to the real hackathon sandbox;
-    anything else (including unset) keeps the simulated in-memory bank."""
-    if os.environ.get("BANK_PLUG_MODE", "simulated") == "mtn_sandbox":
-        return MtnMomoBankPlug()
-    return BankPlug()
-
-SENTENCE = {"low": "allow", "caution": "caution", "high": "hold", "very_high": "block"}
-
-
-def _cedis(amount: float) -> str:
-    return f"GH₵{amount:g}"
-
-
-def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
-    app = FastAPI(title="MoMoGuard controller", version="0.2")
-    # Dev only: the phone preview is served from a separate local port.
+def create_app(store: MoMoGuardStore | None = None, *, seed: bool = True) -> FastAPI:
+    app = FastAPI(title="MoMoGuard Community", version="1.0.0")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
+        allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    settings = load_settings()
-    bank = _make_bank_plug()
-    data = DataPlug()
-    glance = GlancePlug()
-    network = NetworkPlug()
-    rancard = RancardGlancePlug()
-    metrics = MetricsStore()
-    confirms: dict[str, dict] = {}
+    db = store or create_store()
+    if seed and db.backend == "sqlite":
+        seed_demo(db)
 
-    def on_expire(reference: str) -> None:
-        record = pm.get(reference)
-        metrics.finish_payment(reference, "expire")
-        if record:
-            metrics.record("expire", reference=reference, sender=record["sender"],
-                           recipient=record["recipient"], amount=record["amount"])
+    async def lookup_number(phone: str) -> dict:
+        n = normalize_phone(phone)
+        reports = db.reports_for_number(n)
+        warnings = db.list_warnings(status="published")
+        return {**lookup_result(n, reports, warnings), "phone_number": n, "source": "momoguard_db"}
 
-    pm = PauseManager(timeout_s=pause_timeout_s, on_expire=on_expire)
+    async def submit_report(payload: dict) -> dict:
+        try:
+            report = db.insert_report(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {**report, "reporter_hidden": True}
 
-    def build_context(sender: str, recipient: str, amount: float,
-                      ts: str | None = None) -> dict:
-        history = bank.history(sender)
-        sends = [t["amount"] for t in history if t["sender"] == sender]
-        typical = sum(sends) / len(sends) if sends else 100.0
-        new_recipient = not bank.has_safe_history(sender, recipient)
-        payment_time = (datetime.fromisoformat(ts) if ts
-                        else datetime.now(timezone.utc).replace(tzinfo=None))
-        incoming = [t for t in history
-                    if t["sender"] == recipient and t["recipient"] == sender
-                    and datetime.fromisoformat(t["ts"]) <= payment_time]
-        send_back_new_recent_similar = any(
-            new_recipient
-            and 0 <= (payment_time - datetime.fromisoformat(t["ts"])).total_seconds()
-            <= settings["send_back_window_hours"] * 3600
-            and settings["send_back_min_ratio"] <= amount / t["amount"]
-            <= settings["send_back_max_ratio"]
-            for t in incoming
-        )
-        balance = bank.balance(sender)
+    async def list_warnings() -> list:
+        return db.list_warnings()
+
+    ussd = CommunityUssdRouter(lookup_number, submit_report, list_warnings)
+    app.state.db = db
+    app.state.ussd = ussd
+
+    def _mod_auth(authorization: str | None, allow_viewer: bool = False):
+        try:
+            return require_moderator(authorization, allow_viewer=allow_viewer)
+        except PermissionError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    @app.get("/health")
+    async def health():
+        return {"status": "ok", "backend": db.backend, "simulated_ussd": True}
+
+    @app.post("/reports")
+    async def post_report(body: dict):
+        for field in ("reporter_id", "scam_type"):
+            if field not in body:
+                raise HTTPException(status_code=422, detail=f"missing {field}")
+        phone = body.get("phone_number", "")
+        if phone and not validate_phone(phone):
+            raise HTTPException(status_code=422, detail="invalid phone_number format")
+        report = db.insert_report(body)
+        return {**report, "reporter_id": "[hidden]"}
+
+    @app.get("/reports")
+    async def get_reports(
+        authorization: str | None = Header(default=None),
+        status: str | None = None,
+        phone_number: str | None = None,
+        scam_type: str | None = None,
+    ):
+        _mod_auth(authorization, allow_viewer=True)
+        items = db.list_reports(status=status, phone_number=phone_number, scam_type=scam_type)
+        for r in items:
+            r["reporter_id"] = "[hidden]"
+        return {"reports": items}
+
+    @app.get("/reports/{report_id}")
+    async def get_report(report_id: int, authorization: str | None = Header(default=None)):
+        _mod_auth(authorization, allow_viewer=True)
+        report = db.get_report(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="not found")
+        all_reports = db.list_reports()
+        similar = find_similar_reports(report, all_reports)
+        report = {**report, "reporter_id": "[hidden]", "similar_reports": similar}
+        return report
+
+    @app.patch("/reports/{report_id}/status")
+    async def patch_report_status(
+        report_id: int,
+        body: dict,
+        authorization: str | None = Header(default=None),
+    ):
+        _mod_auth(authorization)
+        status = body.get("status")
+        if not status:
+            raise HTTPException(status_code=422, detail="missing status")
+        try:
+            report = db.update_report_status(report_id, status)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if not report:
+            raise HTTPException(status_code=404, detail="not found")
+        return report
+
+    @app.get("/numbers/check/{phone_number}")
+    async def check_number(phone_number: str):
+        if not validate_phone(phone_number):
+            raise HTTPException(status_code=422, detail="invalid phone_number")
+        n = normalize_phone(phone_number)
+        reports = db.reports_for_number(n)
+        warnings = db.list_warnings(status="published")
+        number_row = db.get_number(n)
         return {
-            "new_recipient": new_recipient,
-            "send_back": bool(incoming),
-            "send_back_new_recent_similar": send_back_new_recent_similar,
-            "unusual_amount": new_recipient and amount > settings["unusual_amount_multiplier"] * typical,
-            "large_balance_share": balance is not None and amount > settings["large_balance_share_threshold"] * balance,
-            "safe_history": not new_recipient,
-            "unknown_call_before": data.unknown_call_before(sender, ts)["status"] == "detected",
-            "long_call_before": data.long_call_before(sender, ts)["status"] == "detected",
-            "recipient_calls_many": data.recipient_calls_many(recipient)["status"] == "detected",
-            "sim_recently_changed": network.sim_recently_changed(recipient)["status"] == "detected",
-            "many_senders": bank.distinct_senders(recipient) >= 3,
-            "reports": glance.check(recipient)["reports"],
-            "known_scam_pattern": False,
+            **lookup_result(n, reports, warnings),
+            "phone_number": n,
+            "number_status": (number_row or {}).get("current_status", "unknown"),
+            "source": "momoguard_db",
+            "disclaimer": "No reports found does not mean safe.",
         }
 
-    def recipient_name(number: str) -> str:
-        account = bank.account(number)
-        return account["name"] if account else number
+    @app.get("/warnings")
+    async def get_warnings(status: str | None = "published"):
+        if status in (None, "", "all"):
+            items = db.list_warnings()
+        else:
+            items = db.list_warnings(status=status)
+        return {"warnings": items, "source": "momoguard_db"}
 
-    def send_to_bank(sender: str, recipient: str, amount: float, key: str) -> dict:
-        result = bank.send(sender, recipient, amount, unique_key=key)
-        if result["status"] == "ok":
-            metrics.record("release", sender=sender, recipient=recipient, amount=amount)
-            return {"ok": True, "message": f"Sent {_cedis(amount)} to {recipient_name(recipient)}."}
-        metrics.record("send_failed", sender=sender, recipient=recipient, amount=amount)
-        return {"ok": False, "message": "Payment could not be completed. Nothing was sent."}
+    @app.post("/warnings")
+    async def post_warning(body: dict, authorization: str | None = Header(default=None)):
+        _mod_auth(authorization)
+        if "title" not in body:
+            raise HTTPException(status_code=422, detail="missing title")
+        return db.insert_warning(body)
 
-    async def do_assess(session_id: str, sender: str, recipient: str,
-                        amount: float, ts: str | None = None) -> dict:
-        context = build_context(sender, recipient, amount, ts)
-        scored = assess_payment(context, settings=settings)
-        band = scored["band"]
-        metrics.payments_checked += 1
-        sources = {**SOURCES, "bank": bank.source}
-        base = {"band": band, "reasons": scored["reasons"],
-                "labels": scored["labels"], "sources": sources}
+    @app.patch("/warnings/{warning_id}")
+    async def patch_warning(
+        warning_id: int,
+        body: dict,
+        authorization: str | None = Header(default=None),
+    ):
+        _mod_auth(authorization)
+        try:
+            warning = db.update_warning(warning_id, body)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if not warning:
+            raise HTTPException(status_code=404, detail="not found")
+        return warning
 
-        pair_max = bank.pair_max_safe(sender, recipient)
-        if needs_confirm(amount, pair_max, settings):
-            confirms[session_id] = {"sender": sender, "recipient": recipient, "amount": amount}
-            message = (f"You usually send about {_cedis(pair_max)} to {recipient_name(recipient)}. "
-                       f"You are sending {_cedis(amount)} ({amount_in_words(amount)}). "
-                       "Continue? 1 Yes 2 No")
-            metrics.record("assess", session_id=session_id, sender=sender,
-                           recipient=recipient, amount=amount, band=band, decision="confirm")
-            return {**base, "decision": "confirm", "message": message,
-                    "confirm": {"usual": pair_max, "new": amount,
-                                "in_words": amount_in_words(amount)}}
+    @app.get("/training/scenarios")
+    async def training_scenarios():
+        return {"scenarios": db.list_scenarios()}
 
-        decision = SENTENCE[band]
-        if decision in ("allow", "caution"):
-            sent = send_to_bank(sender, recipient, amount, uuid.uuid4().hex)
-            if not sent["ok"]:
-                decision = "block"
-                message = sent["message"]
-            elif decision == "caution":
-                message = (f"{sent['message']} Note: this is a new number. "
-                           "Please be sure you know who you are paying.")
-            else:
-                message = sent["message"]
-        elif decision == "hold":
-            reference = await pm.pause(sender, recipient, amount, ts=ts)
-            metrics.start_payment(reference, band)
-            message = ("Pause before sending. This payment looks unusual. "
-                       "A short safety check will follow. Nothing sent yet.")
-            base["reference"] = reference
-            base["voice_script_id"] = "voice_check_en"
-        else:  # block
-            metrics.start_payment(session_id, band)
-            metrics.finish_payment(session_id, "block")
-            message = ("This payment has been stopped to protect you. "
-                       "It may be a trick. Nothing was sent.")
-        metrics.record("assess", session_id=session_id, sender=sender,
-                       recipient=recipient, amount=amount, band=band, decision=decision)
-        return {**base, "decision": decision, "message": message}
+    @app.get("/training/scenarios/{scenario_id}")
+    async def training_scenario(scenario_id: int):
+        scenario = db.get_scenario(scenario_id)
+        if not scenario:
+            raise HTTPException(status_code=404, detail="not found")
+        return scenario
 
-    async def do_confirm(session_id: str, sender: str, recipient: str,
-                         amount: float, answer: str) -> dict:
-        pending = confirms.pop(session_id, None)
-        if (not pending or pending["sender"] != sender
-                or pending["recipient"] != recipient or pending["amount"] != amount):
-            return {"decision": "cancelled", "message": "This confirmation is no longer active."}
-        if answer == "no":
-            metrics.record("confirm", session_id=session_id, sender=sender,
-                           recipient=recipient, amount=amount, decision="cancelled")
-            return {"decision": "cancelled", "message": "Payment cancelled. Nothing was sent."}
-        sent = send_to_bank(sender, recipient, amount, uuid.uuid4().hex)
-        decision = "allow" if sent["ok"] else "cancelled"
-        metrics.record("confirm", session_id=session_id, sender=sender,
-                       recipient=recipient, amount=amount, decision=decision)
-        return {"decision": decision, "message": sent["message"]}
+    @app.get("/training/questions")
+    async def training_questions(assessment_type: str | None = None):
+        tag = assessment_type or "practice"
+        return {"questions": db.list_questions(assessment_tag=tag)}
 
-    async def do_voice_result(reference: str, sender: str, answers: dict,
-                              force: str | None = None) -> dict:
-        record = pm.get(reference)
-        if record is None or record["sender"] != sender:
-            return {"decision": "cancel", "offer_report": False,
-                    "message": "This safety check is not active. Nothing was sent."}
-        if force == "cancel":
-            await pm.submit_result(reference, sender, "cancel")
-            metrics.finish_payment(reference, "cancel")
-            metrics.record("voice_result", reference=reference, sender=sender, decision="cancel")
-            return {"decision": "cancel", "offer_report": True,
-                    "message": "Payment cancelled. Nothing was sent."}
-
-        context = build_context(record["sender"], record["recipient"],
-                                record["amount"], record.get("ts"))
-        band = assess_payment(context, answers=answers, settings=settings)["band"]
-        decision = {"low": "release", "caution": "release",
-                    "high": "hold", "very_high": "cancel"}[band]
-        outcome = await pm.submit_result(reference, sender, decision)
-        if outcome["status"] == "refused":
-            return {"decision": "cancel", "offer_report": False,
-                    "message": "This safety check is no longer active. Nothing was sent."}
-        if outcome["status"] == "released":
-            sent = send_to_bank(record["sender"], record["recipient"],
-                                record["amount"], key=reference)
-            if sent["ok"]:
-                metrics.finish_payment(reference, "release")
-                metrics.record("voice_result", reference=reference, sender=sender, decision="release")
-                return {"decision": "release", "offer_report": False,
-                        "message": sent["message"] + " Safety check passed."}
-            metrics.finish_payment(reference, "failed_send")
-            return {"decision": "cancel", "offer_report": False, "message": sent["message"]}
-        if outcome["status"] == "cancelled":
-            metrics.finish_payment(reference, "cancel")
-            metrics.record("voice_result", reference=reference, sender=sender, decision="cancel")
-            return {"decision": "cancel", "offer_report": True,
-                    "message": "Payment cancelled after the safety check. Nothing was sent.",
-                    "attempts_left": outcome.get("attempts_left", 0)}
-        metrics.record("voice_result", reference=reference, sender=sender, decision="hold")
-        return {"decision": "hold", "offer_report": False,
-                "message": "This payment still looks unusual. Please try the safety check again.",
-                "attempts_left": outcome["attempts_left"]}
-
-    async def do_report(number: str, trick: str, reporter_id: str, description: str = "",
-                        community: str = "", incident_time: str = "",
-                        claimed_identity: str = "", request_type: str = "",
-                        lost_money: bool | None = None, channel: str = "") -> dict:
-        result = glance.report(
-            number, trick, reporter_id, description=description,
-            community=community, incident_time=incident_time,
-            claimed_identity=claimed_identity, request_type=request_type,
-            lost_money=lost_money, channel=channel,
-        )
-        metrics.record("report", number=number, trick=trick, accepted=result["accepted"])
-        if result.get("accepted"):
-            result["glance_submission"] = rancard.submit_sandbox_report(
-                number=number,
-                reporter_id=reporter_id,
-                report_day=result.get("report_day", ""),
-                trick=trick,
-                request_type=request_type,
-                lost_money=lost_money,
-                channel=channel,
+    @app.post("/training/attempts")
+    async def training_attempt(body: dict):
+        user_id = body.get("user_id")
+        assessment_type = body.get("assessment_type", "practice")
+        answers = body.get("answers", [])
+        if not user_id or not answers:
+            raise HTTPException(status_code=422, detail="missing user_id or answers")
+        db.upsert_user(user_id, body.get("display_name", user_id), "user")
+        responses = []
+        for a in answers:
+            q = db.get_question(int(a["question_id"]))
+            if not q:
+                continue
+            selected = a.get("selected_answer", "")
+            responses.append(
+                {
+                    "question_id": q["id"],
+                    "selected_answer": selected,
+                    "is_correct": selected == q["correct_answer"],
+                }
             )
+        result = db.save_quiz_attempt(user_id, assessment_type, responses)
         return result
 
-    async def do_community_intelligence(number: str) -> dict:
-        return glance.intelligence(number)
+    @app.get("/training/results/{user_id}")
+    async def training_results(user_id: str):
+        history = db.quiz_history(user_id)
+        return {"user_id": user_id, "history": history, "stats": db.training_stats()}
 
-    async def do_rancard_reverse_lookup(number: str) -> dict:
-        return rancard.reverse_lookup(number)
+    @app.get("/training/recommendations/{user_id}")
+    async def training_recommendations(user_id: str):
+        return {"user_id": user_id, "recommendations": db.get_recommendations(user_id)}
 
-    ussd = UssdRouter(do_assess, do_confirm, do_voice_result, do_report)
+    @app.get("/moderator/overview")
+    async def moderator_overview(authorization: str | None = Header(default=None)):
+        _mod_auth(authorization, allow_viewer=True)
+        return db.overview_stats()
 
-    app.state.bank = bank
-    app.state.pm = pm
-    app.state.metrics = metrics
-
-    def _require(body: dict, *fields):
-        missing = [f for f in fields if f not in body]
-        if missing:
-            raise HTTPException(status_code=422, detail=f"missing fields: {missing}")
-
-    @app.post("/assess")
-    async def assess(body: dict):
-        _require(body, "session_id", "sender", "recipient", "amount")
-        return await do_assess(body["session_id"], body["sender"],
-                               body["recipient"], float(body["amount"]), body.get("ts"))
-
-    @app.post("/confirm")
-    async def confirm(body: dict):
-        _require(body, "session_id", "sender", "recipient", "amount", "answer")
-        return await do_confirm(body["session_id"], body["sender"], body["recipient"],
-                                float(body["amount"]), body["answer"])
-
-    @app.post("/voice-result")
-    async def voice_result(body: dict):
-        _require(body, "reference", "sender", "answers")
-        return await do_voice_result(body["reference"], body["sender"], body["answers"])
-
-    @app.post("/resume")
-    async def resume(body: dict):
-        _require(body, "reference", "sender")
-        result = await pm.resume(body["reference"], body["sender"])
-        messages = {
-            "pending": "The safety check is still waiting for answers.",
-            "released": "This payment was already released.",
-            "cancelled": "This payment was cancelled. Nothing was sent.",
-            "expired": "The safety check timed out. The payment was cancelled.",
-            "refused": "This reference is not valid for this sender.",
+    @app.post("/auth/demo-login")
+    async def demo_login(body: dict):
+        role = body.get("role", "moderator")
+        token = os.environ.get("MODERATOR_DEMO_TOKEN", "demo-mod-token") if role == "moderator" else os.environ.get("VIEWER_DEMO_TOKEN", "demo-view-token")
+        return {
+            "token": token,
+            "role": role,
+            "message": "Demo token only — not for production.",
         }
-        return {"status": result["status"], "message": messages[result["status"]]}
-
-    @app.post("/report")
-    async def report(body: dict):
-        _require(body, "number", "trick", "reporter_id")
-        lost_money = body.get("lost_money")
-        if lost_money is not None and not isinstance(lost_money, bool):
-            raise HTTPException(status_code=422, detail="lost_money must be a boolean when set")
-        return await do_report(
-            body["number"], body["trick"], body["reporter_id"],
-            body.get("description", ""), body.get("community", ""),
-            body.get("incident_time", ""), body.get("claimed_identity", ""),
-            body.get("request_type", ""), lost_money, body.get("channel", ""),
-        )
-
-    @app.get("/community/intelligence")
-    async def community_intelligence(number: str):
-        return await do_community_intelligence(number)
-
-    @app.get("/rancard/reverse-lookup")
-    async def rancard_reverse_lookup(number: str):
-        return await do_rancard_reverse_lookup(number)
-
-    @app.post("/check-otp")
-    async def check_otp(body: dict):
-        # STUB ONLY: the OTP approach is on hold by project decision.
-        return {"status": "not_implemented", "checker_status": "not_checked",
-                "recommended_action": "allow",
-                "message": "The code check is not available yet."}
 
     @app.post("/ussd")
     async def ussd_endpoint(body: dict):
-        _require(body, "session_id", "sender")
-        return await ussd.handle(body["session_id"], body.get("key", ""), body["sender"])
-
-    @app.get("/metrics")
-    async def get_metrics():
-        return metrics.metrics()
-
-    @app.get("/audit")
-    async def get_audit():
-        return {"events": metrics.audit(), "source": "simulated"}
+        session_id = body.get("session_id")
+        sender = body.get("sender", "ussd-user")
+        if not session_id:
+            raise HTTPException(status_code=422, detail="missing session_id")
+        return await ussd.handle(session_id, body.get("key", ""), sender)
 
     @app.post("/reset-demo")
     async def reset_demo():
-        bank.reset()
-        data.reset()
-        glance.reset()
-        network.reset()
-        rancard.reset()
-        await pm.reset()
-        metrics.reset()
-        confirms.clear()
+        db.reset()
+        seed_demo(db)
         ussd.reset()
-        return {"status": "ok", "message": "Demo reset to starting state."}
+        return {"status": "ok", "message": "Demo data reloaded."}
 
     return app
 
 
-app = create_app()
+_auto_seed = os.environ.get("MOMOGUARD_AUTO_SEED", "1") != "0"
+app = create_app(seed=_auto_seed)

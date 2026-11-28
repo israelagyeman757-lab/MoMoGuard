@@ -9,3 +9,5 @@ export function resolveControllerUrl(defaultDev = "http://127.0.0.1:8000") {
   }
   return "/api";
 }
+
+export const controllerBase = resolveControllerUrl;

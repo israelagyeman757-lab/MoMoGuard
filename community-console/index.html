@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoMoGuard Moderator Dashboard</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>MoMoGuard <span>Moderator</span></h1>
+    <div class="auth">
+      <button id="login_mod" type="button">Demo login</button>
+      <span id="auth_status">Not signed in</span>
+    </div>
+  </header>
+  <main class="layout">
+  <section class="panel stats" id="overview_panel">
+    <h2>Overview</h2>
+    <input type="password" id="auth_token" placeholder="Bearer token" />
+    <button id="load_overview" type="button">Load overview</button>
+    <pre id="overview"></pre>
+  </section>
+  <section class="panel">
+    <h2>Reports</h2>
+    <button id="load_reports" type="button">Refresh reports</button>
+    <div id="reports_list"></div>
+  </section>
+  <section class="panel">
+    <h2>Number intelligence</h2>
+    <input id="lookup_number" placeholder="0244123456" />
+    <button id="lookup_btn" type="button">Check</button>
+    <pre id="lookup_out"></pre>
+  </section>
+  <section class="panel">
+    <h2>Warnings</h2>
+    <input id="warn_title" placeholder="Warning title" />
+    <textarea id="warn_body" placeholder="Behaviour description (no reporter names)"></textarea>
+    <button id="create_warning" type="button">Create draft</button>
+    <button id="load_warnings" type="button">List warnings</button>
+    <div id="warnings_list"></div>
+  </section>
+  <section class="panel">
+    <h2>Training analytics</h2>
+    <pre id="training_stats"></pre>
+  </section>
+  </main>
+  <p class="note">Demo moderators use token from POST /auth/demo-login. Reporters' identities are hidden.</p>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
