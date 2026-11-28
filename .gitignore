@@ -9,6 +9,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 
+# community console's own SQLite file, only created when COMMUNITY_DB_PATH
+# is set for real persistence across restarts; tests always use :memory:
+controller/community/*.db
+
 # local research material (not part of the build)
 Read stuff/
 

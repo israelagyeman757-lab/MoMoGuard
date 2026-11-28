@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4c271b">
+  <meta name="description" content="MoMoGuard community console: submit community scam reports, moderate them, publish warnings, and look up a number.">
+  <title>MoMoGuard — Community console</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="brand" aria-label="MoMoGuard">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 36" role="img"><path d="M16 2 29 7v10c0 8.4-5.3 14.1-13 17C8.3 31.1 3 25.4 3 17V7L16 2Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="m10 17 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span>MoMoGuard<span class="brand-dot">.</span></span>
+    </div>
+    <a class="open-phone-link" href="../phone-page/index.html" target="_blank" rel="noopener">Open feature-phone preview ↗</a>
+  </header>
+
+  <main class="console">
+    <section class="console-intro">
+      <p class="eyebrow">COMMUNITY CONSOLE · TRACK 4 PIVOT</p>
+      <h1>Report, review, and publish — together.</h1>
+      <p class="console-copy">
+        This page talks only to the real controller's community endpoints
+        (<code>/reports</code>, <code>/numbers/check</code>, <code>/warnings</code>) — it scores nothing
+        itself. A report is <em>pending</em> until a moderator reviews it here; only a
+        <strong>published</strong> report becomes a warning that shows up on
+        <code>GET /warnings</code> and in the feature phone's "Scam Alerts" and
+        "Check a Number" menus. This is additive to the existing payment-risk system
+        (Brain, pause manager, MTN sandbox bank plug, Message Intelligence Agent),
+        which is unchanged and still running underneath.
+      </p>
+      <p class="bridge-status" id="status_line">Checking connection…</p>
+    </section>
+
+    <section class="panel" aria-labelledby="submit-heading">
+      <h2 id="submit-heading">1 · Submit a community report</h2>
+      <p class="panel-hint">Anyone can report a number as suspected. One report per reporter per number per day. A report alone is never proof — it only becomes a public warning once a moderator publishes it below.</p>
+      <form id="report_form" class="report-form">
+        <div class="field-row">
+          <div>
+            <label class="field-label" for="report_number">Phone number</label>
+            <input id="report_number" type="text" placeholder="e.g. 0240000005" required>
+          </div>
+          <div>
+            <label class="field-label" for="report_trick">What happened</label>
+            <select id="report_trick">
+              <option value="possible_fake_reversal">Possible fake reversal</option>
+              <option value="possible_impersonation">Possible impersonation</option>
+              <option value="possible_advance_fee">Possible advance fee</option>
+              <option value="other">Other / suspected scam</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="report_reporter">Your ID (any demo name)</label>
+            <input id="report_reporter" type="text" placeholder="e.g. aunty-demo" required>
+          </div>
+        </div>
+        <label class="field-label" for="report_detail">What happened (optional detail)</label>
+        <textarea id="report_detail" rows="2" placeholder="Optional — what did they say or ask for?"></textarea>
+        <div class="field-actions">
+          <button type="submit" class="primary-button">Submit report</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="moderate-heading">
+      <h2 id="moderate-heading">2 · Moderator review queue</h2>
+      <p class="panel-hint">Every report ever submitted, newest first. Publish turns a report into a warning everyone can see; reject drops it without creating one. No login — anyone with this page's URL can moderate, a deliberate hackathon-scope simplification (see README).</p>
+      <div class="field-actions">
+        <button type="button" id="refresh_reports" class="ghost-button">Refresh</button>
+        <select id="filter_status">
+          <option value="">All statuses</option>
+          <option value="pending" selected>Pending review</option>
+          <option value="published">Published</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <ul class="report-list" id="reports_list"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="warnings-heading">
+      <h2 id="warnings-heading">3 · Published warnings</h2>
+      <p class="panel-hint">What <code>GET /warnings</code> returns right now — exactly what shows up in the feature phone's "3 Scam Alerts" menu.</p>
+      <ul class="warning-list" id="warnings_list"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="lookup-heading">
+      <h2 id="lookup-heading">4 · Check a number</h2>
+      <p class="panel-hint">Same data the feature phone's "4 Check a Number" menu now shows.</p>
+      <div class="field-row">
+        <input id="lookup_number" type="text" placeholder="e.g. 0240000005">
+        <button type="button" id="lookup_button" class="primary-button">Check</button>
+      </div>
+      <div id="lookup_result" class="lookup-result"></div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <span>COMMUNITY REPORTS · MODERATOR-REVIEWED WARNINGS · the Brain/pause-manager/OTP/MTN-sandbox payment path is untouched by this page.</span>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
