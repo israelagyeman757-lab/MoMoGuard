@@ -10,16 +10,16 @@ test("boot leads to lock; Unlock then * reaches idle", () => {
   assert.equal(flow.state.screen, "boot");
   flow.finishBoot();
   assert.equal(flow.state.screen, "lock");
-  flow.press("softRight");
+  flow.press("ok");
   assert.ok(flow.state.lockAwaitStar);
   flow.press("*");
   assert.equal(flow.state.screen, "idle");
 });
 
-test("idle soft keys: Select left, Menu right", () => {
+test("idle soft keys: Menu left, Names right", () => {
   const labels = softKeyLabels("idle");
-  assert.equal(labels.left, "Select");
-  assert.equal(labels.right, "Menu");
+  assert.equal(labels.left, "Menu");
+  assert.equal(labels.right, "Names");
 });
 
 test("T9 number mode and clear", () => {

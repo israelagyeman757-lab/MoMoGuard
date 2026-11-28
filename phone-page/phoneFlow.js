@@ -16,7 +16,12 @@ export const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calend
 const ACTIVE_APPS = new Set(["messages", "simToolkit"]);
 const APP_ENTRY = { messages: "messages", simToolkit: "stkCarrier" };
 
-const INPUT_SCREENS = new Set(["stkCheckInput", "stkReportNumber", "stkReportDesc"]);
+export const INPUT_SCREENS = new Set(["stkCheckInput", "stkReportNumber", "stkReportDesc"]);
+
+export const STK_MENU_SCREENS = new Set([
+  "stkCarrier", "stkMomo", "stkReportType", "stkTrainingQ",
+  "apps", "messages", "stkPopup",
+]);
 
 export class PhoneFlow {
   constructor({ mode = "mock", userId = "phone-user-1" } = {}) {
@@ -275,7 +280,7 @@ export class PhoneFlow {
 
   showStkPopup(payload) {
     this.state.stkPopup = {
-      text: payload?.text || "MoMoGuard alert",
+      text: payload?.text || "Walɔ alert",
       more: payload?.more ?? false,
       report: payload?.report ?? false,
     };
@@ -306,14 +311,6 @@ export class PhoneFlow {
 
   press(key, now = Date.now()) {
     if (key === "softRight") {
-      if (this.state.screen === "idle") {
-        this._go("apps");
-        return;
-      }
-      if (this.state.screen === "lock") {
-        this.state.lockAwaitStar = true;
-        return;
-      }
       key = "back";
     }
 
@@ -377,7 +374,10 @@ export class PhoneFlow {
       return;
     }
 
-    if (screen === "boot") return;
+    if (screen === "boot") {
+      this.finishBoot();
+      return;
+    }
 
     const menuScreens = new Set(["stkCarrier", "stkMomo", "stkReportType"]);
     if (menuScreens.has(screen)) {

@@ -12,7 +12,7 @@ const KEY_MAP = {
   0: " 0+",
 };
 
-const DEFAULT_TAP_MS = 750;
+const DEFAULT_TAP_MS = 800;
 
 export class T9Input {
   constructor({ mode = "number", tapMs = DEFAULT_TAP_MS } = {}) {

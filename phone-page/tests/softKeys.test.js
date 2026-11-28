@@ -9,13 +9,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const indexHtml = readFileSync(join(here, "..", "index.html"), "utf8");
 
 test("soft keys on lock and STK input", () => {
-  assert.deepEqual(softKeyLabels("lock"), { left: "", right: "Unlock" });
+  assert.deepEqual(softKeyLabels("lock"), { left: "Unlock", right: "" });
   assert.deepEqual(softKeyLabels("stkCheckInput"), { left: "", right: "Back" });
 });
 
 test("labels live on LCD footer, not bezel buttons", () => {
   assert.match(indexHtml, /id="screen_soft_left"/);
   assert.match(indexHtml, /id="screen_soft_right"/);
+  assert.match(indexHtml, /id="soft_left"/);
+  assert.doesNotMatch(indexHtml, /soft-key-row/);
+  assert.doesNotMatch(indexHtml, /soft-chevron/);
   assert.doesNotMatch(indexHtml, /id="soft_left_label"/);
 });
 

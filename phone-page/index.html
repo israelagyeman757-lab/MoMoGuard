@@ -3,92 +3,118 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#1a1a1a">
-  <meta name="description" content="MoMoGuard feature phone">
-  <title>MoMoGuard</title>
+  <meta name="theme-color" content="#c9a96e">
+  <meta name="description" content="Walɔ feature phone">
+  <title>Walɔ</title>
   <link rel="stylesheet" href="/phone-page/styles.css">
 </head>
 <body>
   <div id="demo_toast" class="demo-toast" role="status" aria-live="polite"></div>
 
   <main class="phone-stage" aria-label="Feature phone">
-    <div class="phone-shadow" aria-hidden="true"></div>
-    <div class="phone" id="phone">
-      <div class="phone-earpiece" aria-hidden="true"></div>
+    <div class="phone-scale" id="phone_scale">
+      <div class="phone-shadow" aria-hidden="true"></div>
+      <div class="phone" id="phone">
+        <header class="phone-cap">
+          <div class="phone-earpiece" aria-hidden="true"></div>
+          <span class="phone-camera" aria-hidden="true"></span>
+        </header>
 
-      <div class="screen-bezel">
-        <div class="phone-screen" id="phone_screen">
-          <div class="screen-status" aria-hidden="true">
-            <span class="network"><i></i><i></i><i></i><i></i></span>
-            <span class="status-carrier">MTN</span>
-            <span id="screen_time">09:41</span>
-            <span class="battery"><i></i></span>
-          </div>
-          <div class="screen-body">
-            <div class="screen-content" id="screen_content" aria-live="polite"></div>
-            <div class="screen-soft-bar" aria-hidden="true">
-              <span class="screen-soft-left" id="screen_soft_left"></span>
-              <span class="screen-soft-right" id="screen_soft_right"></span>
+        <div class="screen-bezel">
+          <div class="phone-screen" id="phone_screen">
+            <div class="screen-status" aria-hidden="true">
+              <span class="network" aria-label="Signal">
+                <svg class="icon" viewBox="0 0 16 10" width="15" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M1 9V7M4.5 9V5M8 9V3M11.5 9V1"/></svg>
+              </span>
+              <span class="status-carrier">MTN</span>
+              <span class="status-stk" id="status_stk" hidden aria-label="STK message">
+                <svg class="icon" viewBox="0 0 12 10" width="12" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M1 2h10v6H1V2zm0 0 5 4 5-4"/></svg>
+              </span>
+              <span id="screen_time">09:41</span>
+              <span class="battery" aria-label="Battery">
+                <svg class="icon" viewBox="0 0 18 9" width="17" height="9" aria-hidden="true"><rect x="1" y="1" width="14" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M16 3v3h1.5V3H16z" fill="currentColor"/><rect x="2.5" y="2.5" width="10" height="4" fill="currentColor"/></svg>
+              </span>
+            </div>
+            <div class="screen-body">
+              <div class="screen-content" id="screen_content" aria-live="polite"></div>
+              <footer class="screen-soft-bar" aria-hidden="true">
+                <span class="screen-soft-left" id="screen_soft_left"></span>
+                <span class="screen-soft-right" id="screen_soft_right"></span>
+              </footer>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="soft-key-row" aria-label="Soft keys">
-        <button type="button" class="key soft-key soft-left" data-key="ok" id="soft_left" aria-label="Left soft key">
-          <span class="soft-chevron" aria-hidden="true">◀</span>
-        </button>
-        <button type="button" class="key soft-key soft-right" data-key="softRight" id="soft_right" aria-label="Right soft key">
-          <span class="soft-chevron" aria-hidden="true">▶</span>
-        </button>
-      </div>
-
-      <div class="phone-controls">
-        <button class="key utility-key call-key" id="key_call" data-key="call" aria-label="Call"><span class="util-glyph call-glyph" aria-hidden="true"></span></button>
-
-        <div class="navigation" aria-label="Navigation">
-          <button class="key nav-key nav-up" id="key_up" data-key="up" aria-label="Up">▲</button>
-          <button class="key nav-key nav-left" id="key_left" data-key="left" aria-label="Left">◀</button>
-          <button class="key ok-key" id="key_ok" data-key="ok" aria-label="OK"><span>OK</span></button>
-          <button class="key nav-key nav-right" id="key_right" data-key="right" aria-label="Right">▶</button>
-          <button class="key nav-key nav-down" id="key_down" data-key="down" aria-label="Down">▼</button>
+        <div class="badge-row" aria-hidden="true">
+          <div class="mtn-badge">
+            <svg viewBox="0 0 88 32" width="72" height="26" aria-hidden="true">
+              <ellipse cx="44" cy="16" rx="42" ry="14" fill="#121212" stroke="#FFCC00" stroke-width="2"/>
+              <text x="44" y="20" text-anchor="middle" fill="#FFCC00" font-family="Arial,sans-serif" font-size="11" font-weight="700">MTN</text>
+            </svg>
+          </div>
         </div>
 
-        <button class="key utility-key end-key" id="key_end" data-key="end" aria-label="End"><span class="util-glyph end-glyph" aria-hidden="true"></span></button>
+        <section class="nav-cluster">
+          <div class="phone-controls-grid">
+            <button type="button" class="key hw-soft pill-key" data-key="ok" id="soft_left" aria-label="Left soft key"></button>
+            <div class="navigation" aria-label="Navigation">
+              <div class="dpad-face" aria-hidden="true">
+                <svg class="dpad-chevrons" viewBox="0 0 100 100" width="100" height="100">
+                  <path fill="none" stroke="#7a6538" stroke-width="2.2" stroke-linecap="round" d="M50 14 L50 24 M46 20 L50 14 L54 20"/>
+                  <path fill="none" stroke="#7a6538" stroke-width="2.2" stroke-linecap="round" d="M50 86 L50 76 M46 80 L50 86 L54 80"/>
+                  <path fill="none" stroke="#7a6538" stroke-width="2.2" stroke-linecap="round" d="M14 50 L24 50 M20 46 L14 50 L20 54"/>
+                  <path fill="none" stroke="#7a6538" stroke-width="2.2" stroke-linecap="round" d="M86 50 L76 50 M80 46 L86 50 L80 54"/>
+                </svg>
+              </div>
+              <button class="key nav-key nav-up" id="key_up" data-key="up" aria-label="Up"></button>
+              <button class="key nav-key nav-left" id="key_left" data-key="left" aria-label="Left"></button>
+              <button class="key ok-key" id="key_ok" data-key="ok" aria-label="OK"><span>OK</span></button>
+              <button class="key nav-key nav-right" id="key_right" data-key="right" aria-label="Right"></button>
+              <button class="key nav-key nav-down" id="key_down" data-key="down" aria-label="Down"></button>
+            </div>
+            <button type="button" class="key hw-soft pill-key" data-key="softRight" id="soft_right" aria-label="Right soft key"></button>
+            <button class="key action-key call-key pill-key" id="key_call" data-key="call" aria-label="Call">
+              <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path fill="#1db954" d="M6.2 2.8 8.5 5.9l-2.8 2.5c1.4 2.6 3.5 4.7 6.1 6.1l2.5-2.8 3.1 2.3-.9 3.2c-.3.9-1.2 1.4-2.1 1.2C9.4 18.1 2.9 11.6 2 3.4c-.1-.8.4-1.6 1.2-1.8l2-.8Z"/></svg>
+            </button>
+            <button class="key action-key end-key pill-key" id="key_end" data-key="end" aria-label="End">
+              <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" style="transform:rotate(135deg)"><path fill="#d63b2c" d="M6.2 2.8 8.5 5.9l-2.8 2.5c1.4 2.6 3.5 4.7 6.1 6.1l2.5-2.8 3.1 2.3-.9 3.2c-.3.9-1.2 1.4-2.1 1.2C9.4 18.1 2.9 11.6 2 3.4c-.1-.8.4-1.6 1.2-1.8l2-.8Z"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <div class="keypad" aria-label="Keypad">
+          <button class="key number-key" id="key_1" data-key="1"><strong>1</strong><small class="key-alt" aria-hidden="true"><svg viewBox="0 0 14 10" width="11" height="8"><circle cx="4" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path fill="none" stroke="currentColor" stroke-width="1.2" d="M7 3h5v4H7z"/></svg></small></button>
+          <button class="key number-key" id="key_2" data-key="2"><strong>2</strong><small>abc</small></button>
+          <button class="key number-key" id="key_3" data-key="3"><strong>3</strong><small>def</small></button>
+          <button class="key number-key" id="key_4" data-key="4"><strong>4</strong><small>ghi</small></button>
+          <button class="key number-key" id="key_5" data-key="5"><strong>5</strong><small>jkl</small></button>
+          <button class="key number-key" id="key_6" data-key="6"><strong>6</strong><small>mno</small></button>
+          <button class="key number-key" id="key_7" data-key="7"><strong>7</strong><small>pqrs</small></button>
+          <button class="key number-key" id="key_8" data-key="8"><strong>8</strong><small>tuv</small></button>
+          <button class="key number-key" id="key_9" data-key="9"><strong>9</strong><small>wxyz</small></button>
+          <button class="key number-key" id="key_star" data-key="*"><strong>*</strong><small class="key-alt"><svg viewBox="0 0 12 12" width="10" height="10"><path stroke="currentColor" stroke-width="1.6" d="M6 2v8M2 6h8"/></svg></small></button>
+          <button class="key number-key" id="key_0" data-key="0"><strong>0</strong><small class="key-alt"><svg viewBox="0 0 14 6" width="12" height="6"><rect x="1" y="2" width="12" height="2" rx=".5" fill="currentColor"/></svg></small></button>
+          <button class="key number-key" id="key_hash" data-key="#"><strong>#</strong><small class="key-alt"><svg viewBox="0 0 12 10" width="10" height="10"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M6 2v4M4 5h4"/></svg></small></button>
+        </div>
+
+        <div class="phone-mic" aria-hidden="true"></div>
       </div>
 
-      <div class="keypad" aria-label="Keypad">
-        <button class="key number-key" id="key_1" data-key="1"><strong>1</strong><small>&nbsp;</small></button>
-        <button class="key number-key" id="key_2" data-key="2"><strong>2</strong><small>abc</small></button>
-        <button class="key number-key" id="key_3" data-key="3"><strong>3</strong><small>def</small></button>
-        <button class="key number-key" id="key_4" data-key="4"><strong>4</strong><small>ghi</small></button>
-        <button class="key number-key" id="key_5" data-key="5"><strong>5</strong><small>jkl</small></button>
-        <button class="key number-key" id="key_6" data-key="6"><strong>6</strong><small>mno</small></button>
-        <button class="key number-key" id="key_7" data-key="7"><strong>7</strong><small>pqrs</small></button>
-        <button class="key number-key" id="key_8" data-key="8"><strong>8</strong><small>tuv</small></button>
-        <button class="key number-key" id="key_9" data-key="9"><strong>9</strong><small>wxyz</small></button>
-        <button class="key number-key" id="key_star" data-key="*"><strong>*</strong><small>&nbsp;</small></button>
-        <button class="key number-key" id="key_0" data-key="0"><strong>0</strong><small>+</small></button>
-        <button class="key number-key" id="key_hash" data-key="#"><strong>#</strong><small>&nbsp;</small></button>
-      </div>
+      <button type="button" id="demo_stk_push" class="demo-stk-button" title="Simulate STK push">STK</button>
     </div>
 
-    <div class="demo-controls">
-      <button type="button" id="demo_stk_push" class="demo-stk-button">Send STK alert (demo)</button>
-    </div>
-
-    <details class="keyboard-legend">
-      <summary>Keyboard</summary>
+    <details class="keyboard-legend help-toggle">
+      <summary>Help</summary>
       <dl class="keyboard-legend-list">
         <div><dt>0–9, *, #</dt><dd>Keypad</dd></div>
         <div><dt>Arrows</dt><dd>D-pad</dd></div>
         <div><dt>Enter</dt><dd>OK</dd></div>
-        <div><dt>F1 / [</dt><dd>Left soft (Select)</dd></div>
-        <div><dt>F2 / ]</dt><dd>Right soft (Menu / Back)</dd></div>
-        <div><dt>Backspace</dt><dd>Clear entry</dd></div>
+        <div><dt>F1 / [</dt><dd>Left soft</dd></div>
+        <div><dt>F2 / ]</dt><dd>Right soft</dd></div>
+        <div><dt>Backspace</dt><dd>Clear</dd></div>
         <div><dt>Esc</dt><dd>Back</dd></div>
-        <div><dt>F3 / Home</dt><dd>Green call</dd></div>
-        <div><dt>F4 / End</dt><dd>Red end</dd></div>
+        <div><dt>F3 / Home</dt><dd>Call</dd></div>
+        <div><dt>F4 / End</dt><dd>End</dd></div>
       </dl>
     </details>
   </main>
