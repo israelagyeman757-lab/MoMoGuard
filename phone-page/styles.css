@@ -1,19 +1,23 @@
 :root {
-  --lcd-bg: #b8c9a0;
-  --lcd-ink: #1a2a12;
-  --lcd-dim: #4a5c3d;
-  --lcd-hi: #dce8c8;
-  --body: #121417;
-  --shell: #1e2228;
-  --shell-edge: #0c0e11;
-  --key-face: #2d333b;
-  --key-top: #3d444d;
-  --key-label: #e8eaed;
-  --key-sub: #8b949e;
-  --call: #3d8b5a;
-  --end: #c44536;
-  --ok: #d4a82a;
-  --shadow: rgba(0, 0, 0, .45);
+  --lcd-bg: #a4b890;
+  --lcd-ink: #142010;
+  --lcd-dim: #3d5032;
+  --lcd-hi: #d2e4b8;
+  --lcd-glow: rgba(186, 214, 148, .55);
+  --body: #0e1013;
+  --shell: #252a30;
+  --shell-mid: #1a1e23;
+  --shell-edge: #090b0d;
+  --key-face: #333940;
+  --key-top: #454c55;
+  --key-label: #eceef1;
+  --key-sub: #939aa4;
+  --call: #3f9a5c;
+  --call-deep: #2d7344;
+  --end: #d64b3c;
+  --end-deep: #a2382c;
+  --ok: #e0b42f;
+  --shadow: rgba(0, 0, 0, .5);
 }
 
 * { box-sizing: border-box; }
@@ -69,15 +73,18 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 
 .phone {
   position: relative;
-  width: min(310px, calc(100vw - 32px));
-  padding: 14px 16px 18px;
-  border-radius: 28px 28px 36px 36px;
-  border: 2px solid var(--shell-edge);
-  background: linear-gradient(165deg, #2a2f37 0%, var(--shell) 40%, #15181d 100%);
+  width: min(300px, calc(100vw - 32px));
+  padding: 16px 17px 20px;
+  border-radius: 30px 30px 38px 38px;
+  border: 1px solid #08090b;
+  background:
+    radial-gradient(ellipse 90% 40% at 50% 0%, rgba(255, 255, 255, .08), transparent 55%),
+    linear-gradient(168deg, #3a4149 0%, var(--shell) 22%, var(--shell-mid) 55%, #13161a 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .06),
-    0 22px 44px var(--shadow),
-    0 4px 0 #0a0b0d;
+    inset 0 1px 0 rgba(255, 255, 255, .07),
+    inset 0 -3px 6px rgba(0, 0, 0, .35),
+    0 20px 36px var(--shadow),
+    0 3px 0 #060708;
 }
 
 .phone-earpiece {
@@ -99,11 +106,14 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 .phone-screen {
   height: 198px;
   overflow: hidden;
-  border: 2px solid #5a4a32;
+  border: 2px solid #4a3d28;
   border-radius: 4px;
   background: var(--lcd-bg);
   color: var(--lcd-ink);
-  box-shadow: inset 0 0 12px rgba(40, 55, 30, .35);
+  box-shadow:
+    inset 0 0 18px var(--lcd-glow),
+    inset 0 2px 4px rgba(255, 255, 255, .12),
+    inset 0 -2px 6px rgba(40, 55, 30, .25);
 }
 
 .screen-status {
@@ -177,10 +187,11 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   min-height: 0;
   padding: 8px 8px 4px;
   overflow-y: auto;
-  font-family: "Courier New", Consolas, monospace;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.28;
+  font-family: "VT323", "Courier New", Consolas, monospace;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.22;
+  letter-spacing: .02em;
   scrollbar-width: thin;
   scrollbar-color: #7a8f65 transparent;
 }
@@ -273,19 +284,14 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   text-align: center;
 }
 .boot-logo {
-  font-size: 28px;
-  font-weight: 900;
-  letter-spacing: .08em;
-  animation: bootPulse 1s ease-in-out infinite;
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: .12em;
 }
-@keyframes bootPulse { 50% { opacity: .45; } }
 .stk-hd { margin: 0 0 6px; font-size: 12px; font-weight: 800; }
 .stk-sub { margin: 0 0 8px; font-size: 9px; color: var(--lcd-dim); }
 .input-mode { margin: 0 0 4px; font-size: 8px; color: var(--lcd-dim); }
 .idle-date { margin-top: 28px; font-size: 22px; text-align: center; }
-.phone.haptic-shake { animation: shake .12s linear 2; }
-@keyframes shake { 25% { transform: translateX(-1px); } 75% { transform: translateX(1px); } }
-
 .idle-wallpaper {
   position: relative;
   height: calc(100% + 14px);
@@ -522,6 +528,11 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   grid-template-rows: 24px 42px 24px;
   gap: 3px;
   justify-self: center;
+  padding: 6px;
+  border-radius: 50%;
+  border: 2px solid #14171c;
+  background: radial-gradient(circle at 50% 45%, #3a4048, #252a30);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 2px 0 #111316;
 }
 #key_call { grid-column: 1; justify-self: end; width: 52px; }
 #key_end { grid-column: 3; justify-self: start; width: 52px; }
@@ -531,9 +542,8 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   cursor: pointer;
   user-select: none;
   touch-action: manipulation;
-  transition: transform .06s;
 }
-.key:active, .key.is-pressed { transform: translateY(1px); }
+.key:active, .key.is-pressed { transform: translateY(1px); opacity: .92; }
 
 .utility-key {
   height: 36px;
@@ -549,8 +559,10 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   border-radius: 50%;
   background: #5a6270;
 }
-.call-glyph { background: var(--call); }
-.end-glyph { background: var(--end); border-radius: 6px; width: 20px; height: 14px; }
+.call-key { background: linear-gradient(180deg, #4db573, var(--call-deep)); box-shadow: 0 2px 0 #1e4a2e; }
+.end-key { background: linear-gradient(180deg, #e85f50, var(--end-deep)); box-shadow: 0 2px 0 #6b2218; }
+.call-glyph { background: rgba(255, 255, 255, .35); }
+.end-glyph { background: rgba(255, 255, 255, .28); border-radius: 6px; width: 20px; height: 14px; }
 .clear-glyph {
   width: 16px;
   height: 16px;
@@ -610,15 +622,15 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   gap: 6px 8px;
 }
 .number-key {
-  height: 38px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  border-radius: 8px;
+  border-radius: 11px;
   color: var(--key-label);
-  background: linear-gradient(180deg, #454c56, var(--key-face));
-  box-shadow: 0 2px 0 #14171b, inset 0 1px rgba(255, 255, 255, .07);
+  background: linear-gradient(180deg, #4d5560, var(--key-face));
+  box-shadow: 0 2px 0 #121418, inset 0 1px rgba(255, 255, 255, .08);
 }
 .number-key strong { font-size: 16px; font-weight: 700; }
 .number-key small {
@@ -629,7 +641,7 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   text-align: left;
 }
 .number-key:hover, .number-key.is-pressed {
-  background: linear-gradient(180deg, #525a65, #3a4149);
+  background: linear-gradient(180deg, #585f6a, #3e464e);
 }
 
 .phone.is-locked .keypad .key,
@@ -702,9 +714,10 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 }
 .keyboard-legend-list dd { margin: 0; text-align: right; }
 
-.key.is-pressed {
-  filter: brightness(1.12);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .35), 0 0 0 1px rgba(255, 255, 255, .12);
+.navigation .key.is-pressed,
+.number-key.is-pressed,
+.ok-key.is-pressed {
+  filter: brightness(1.08);
 }
 
 @keyframes blink { 50% { opacity: 0; } }

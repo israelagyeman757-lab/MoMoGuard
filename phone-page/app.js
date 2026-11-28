@@ -1,5 +1,5 @@
 import { CONFIG } from "./config.js";
-import { PhoneFlow, APP_ORDER } from "./phoneFlow.js";
+import { PhoneFlow, APP_ORDER, INPUT_SCREENS, STK_MENU_SCREENS } from "./phoneFlow.js";
 import * as controller from "./services/controllerAdapter.js";
 import { softKeyLabels } from "./softKeys.js";
 import { mapKeyboardEvent } from "./keyboardMap.js";
@@ -11,9 +11,16 @@ const screenSoftLeft = document.querySelector("#screen_soft_left");
 const screenSoftRight = document.querySelector("#screen_soft_right");
 const phone = document.querySelector("#phone");
 const timeLabel = document.querySelector("#screen_time");
-let pendingTimer = null;
-let bootDone = false;
 let stkPollTimer = null;
+let bootTimer = null;
+let bootDone = false;
+
+let lastRenderedScreen = "";
+let lastInteractionSig = "";
+
+const MENU_PATCH_SCREENS = new Set([
+  "stkCarrier", "stkMomo", "stkReportType", "stkTrainingQ", "messages", "apps",
+]);
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, c => ({
@@ -103,21 +110,84 @@ function screenTemplate() {
   }
 }
 
-function playBeep() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.value = 880;
-    gain.gain.value = 0.04;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    setTimeout(() => { osc.stop(); ctx.close(); }, 90);
-  } catch {
-    phone.classList.add("haptic-shake");
-    setTimeout(() => phone.classList.remove("haptic-shake"), 120);
+function interactionSignature() {
+  const s = flow.state;
+  return [
+    s.screen,
+    s.selectedMenu,
+    s.stkMenuIndex,
+    s.quizOptionIndex,
+    s.selectedMessage,
+    s.selectedApp,
+    s.lockAwaitStar,
+    s.message,
+    s.messageTag,
+  ].join("|");
+}
+
+function listIndexForScreen(screen) {
+  const s = flow.state;
+  if (screen === "stkMomo") return s.stkMenuIndex;
+  if (screen === "stkTrainingQ") return s.quizOptionIndex;
+  if (screen === "stkReportType") return s.selectedMenu;
+  if (screen === "stkCarrier") return 0;
+  if (screen === "messages") return s.selectedMessage;
+  return s.selectedMenu;
+}
+
+function scrollListItem(selector, index) {
+  const items = screenContent.querySelectorAll(selector);
+  const item = items[index];
+  const list = item?.closest(".inbox-list") || item?.parentElement;
+  if (!list || !item) return;
+  const listRect = list.getBoundingClientRect();
+  const itemRect = item.getBoundingClientRect();
+  if (itemRect.bottom > listRect.bottom) list.scrollTop += itemRect.bottom - listRect.bottom;
+  else if (itemRect.top < listRect.top) list.scrollTop -= listRect.top - itemRect.top;
+}
+
+function patchMenuSelection(screen) {
+  if (screen === "apps") {
+    screenContent.querySelectorAll(".app-item").forEach((el, i) => {
+      const id = APP_ORDER[i];
+      el.classList.toggle("is-selected", id === flow.state.selectedApp);
+    });
+    return;
   }
+  if (screen === "messages") {
+    const idx = flow.state.selectedMessage;
+    screenContent.querySelectorAll(".inbox-message").forEach((el, i) => {
+      el.classList.toggle("is-selected", i === idx);
+    });
+    scrollListItem(".inbox-message", idx);
+    return;
+  }
+  const idx = listIndexForScreen(screen);
+  screenContent.querySelectorAll(".stk-list-item").forEach((el, i) => {
+    const on = i === idx;
+    el.classList.toggle("is-active", on);
+    el.setAttribute("aria-selected", String(on));
+  });
+  scrollListItem(".stk-list-item", idx);
+}
+
+function patchInputFields() {
+  const entry = screenContent.querySelector(".entry-display");
+  if (entry) entry.textContent = flow.entryDisplay;
+  const mode = screenContent.querySelector(".input-mode");
+  if (mode) mode.textContent = `Input: ${flow.inputMode}`;
+}
+
+function patchLockCopy() {
+  const hint = screenContent.querySelector(".lock-screen .screen-small");
+  if (hint) {
+    hint.textContent = flow.state.lockAwaitStar ? "Press *" : "Unlock to continue";
+  }
+}
+
+function patchIdleClock() {
+  const idle = screenContent.querySelector(".idle-date");
+  if (idle) idle.textContent = timeLabel.textContent;
 }
 
 function renderSoftLabels() {
@@ -130,22 +200,88 @@ function renderSoftLabels() {
   if (screenSoftRight) screenSoftRight.textContent = labels.right;
 }
 
-function render() {
+function fullRender() {
   screenContent.innerHTML = screenTemplate();
+  lastRenderedScreen = flow.state.screen;
+  lastInteractionSig = interactionSignature();
   phone.dataset.screen = flow.state.screen;
   phone.classList.toggle("is-locked", flow.state.screen === "lock");
   renderSoftLabels();
 }
 
+function render({ force = false } = {}) {
+  const screen = flow.state.screen;
+  const sig = interactionSignature();
+
+  if (!force && screen === lastRenderedScreen) {
+    if (INPUT_SCREENS.has(screen)) {
+      patchInputFields();
+      renderSoftLabels();
+      return;
+    }
+    if (screen === "lock") {
+      patchLockCopy();
+      renderSoftLabels();
+      return;
+    }
+    if (screen === "idle") {
+      patchIdleClock();
+      renderSoftLabels();
+      return;
+    }
+    if (MENU_PATCH_SCREENS.has(screen) && sig !== lastInteractionSig) {
+      patchMenuSelection(screen);
+      lastInteractionSig = sig;
+      renderSoftLabels();
+      return;
+    }
+  }
+
+  fullRender();
+}
+
 function updateTime() {
   timeLabel.textContent = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  if (flow.state.screen === "idle") patchIdleClock();
 }
 
 function flashHighlight(selector) {
-  const button = selector ? document.querySelector(selector) : null;
+  if (!selector) return;
+  const button = document.querySelector(selector);
   if (!button) return;
   button.classList.add("is-pressed");
-  setTimeout(() => button.classList.remove("is-pressed"), 140);
+  const ms = CONFIG.KEY_FLASH_MS || 45;
+  window.setTimeout(() => button.classList.remove("is-pressed"), ms);
+}
+
+function stkPollActive() {
+  return flow.state.screen === "idle" || flow.state.screen === "lock";
+}
+
+async function pollStkPush() {
+  if (!stkPollActive()) return;
+  if (CONFIG.MODE === "controller") {
+    const res = await controller.pollStkPush(flow.userId);
+    if (res.ok && res.data?.pending) flow.showStkPopup(res.data);
+  }
+  if (flow.state.screen === "stkPopup") render({ force: true });
+}
+
+function scheduleStkPoll() {
+  clearInterval(stkPollTimer);
+  stkPollTimer = null;
+  if (!stkPollActive()) return;
+  const ms = CONFIG.STK_POLL_MS || 10000;
+  stkPollTimer = window.setInterval(pollStkPush, ms);
+}
+
+function pauseStkPollIfNeeded() {
+  if (!stkPollActive()) {
+    clearInterval(stkPollTimer);
+    stkPollTimer = null;
+  } else if (!stkPollTimer) {
+    scheduleStkPoll();
+  }
 }
 
 function dispatch(key, highlightSelector = null) {
@@ -153,9 +289,11 @@ function dispatch(key, highlightSelector = null) {
   const prev = flow.state.screen;
   flow.press(key);
   render();
+  pauseStkPollIfNeeded();
   if (flow.state.screen === "loading") runLoading();
-  if (prev !== "messages" && flow.state.screen === "messages") playBeep();
-  scheduleStkPoll();
+  if (prev !== flow.state.screen && STK_MENU_SCREENS.has(flow.state.screen)) {
+    scheduleStkPoll();
+  }
 }
 
 async function runLoading() {
@@ -188,29 +326,22 @@ async function runLoading() {
       if (res.ok) flow.applyTrainingQuestions(res.data);
       else flow.applyTrainingMock();
     }
+  } else if (CONFIG.SIMULATED_DELAY_MS > 0) {
+    await new Promise(r => setTimeout(r, CONFIG.SIMULATED_DELAY_MS));
+    if (flow.state.screen !== "loading") return;
+    if (kind === "check") flow.applyCheckMock();
+    else if (kind === "report") flow.applyReportMock();
+    else if (kind === "warnings") flow.applyWarningsMock();
+    else if (kind === "training") flow.applyTrainingMock();
   } else {
-    await new Promise(r => setTimeout(r, CONFIG.SIMULATED_DELAY_MS || 500));
     if (flow.state.screen !== "loading") return;
     if (kind === "check") flow.applyCheckMock();
     else if (kind === "report") flow.applyReportMock();
     else if (kind === "warnings") flow.applyWarningsMock();
     else if (kind === "training") flow.applyTrainingMock();
   }
-  render();
-}
-
-async function pollStkPush() {
-  if (flow.state.screen !== "idle") return;
-  if (CONFIG.MODE === "controller") {
-    const res = await controller.pollStkPush(flow.userId);
-    if (res.ok && res.data?.pending) flow.showStkPopup(res.data);
-  }
-  render();
-}
-
-function scheduleStkPoll() {
-  clearInterval(stkPollTimer);
-  stkPollTimer = setInterval(pollStkPush, 5000);
+  render({ force: true });
+  pauseStkPollIfNeeded();
 }
 
 async function demoStkPush(extra = {}) {
@@ -225,9 +356,30 @@ async function demoStkPush(extra = {}) {
     await pollStkPush();
   } else {
     flow.showStkPopup(payload);
-    render();
-    playBeep();
+    render({ force: true });
   }
+}
+
+function finishBootSequence() {
+  if (bootDone) return;
+  bootDone = true;
+  clearTimeout(bootTimer);
+  bootTimer = null;
+  if (flow.state.screen === "boot") {
+    flow.finishBoot();
+    render({ force: true });
+  }
+  scheduleStkPoll();
+}
+
+function isTypingElsewhere(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.closest(".phone")) return false;
+  if (target.closest(".keyboard-legend")) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
 let longZeroTimer = null;
@@ -247,36 +399,29 @@ for (const button of document.querySelectorAll(".phone [data-key]")) {
   }
 }
 
-document.addEventListener("keydown", event => {
+function onPhoneKeyDown(event) {
+  if (isTypingElsewhere(event)) return;
+  if (flow.state.screen === "boot") finishBootSequence();
   const mapped = mapKeyboardEvent(event);
   if (!mapped) return;
   event.preventDefault();
   dispatch(mapped.phoneKey, mapped.highlight);
-});
+}
+
+window.addEventListener("keydown", onPhoneKeyDown, true);
+
+if (phone) {
+  phone.setAttribute("tabindex", "-1");
+  phone.focus({ preventScroll: true });
+}
 
 const demoStkButton = document.querySelector("#demo_stk_push");
 if (demoStkButton) {
   demoStkButton.addEventListener("click", () => demoStkPush());
 }
 
-if (!bootDone) {
-  bootDone = true;
-  render();
-  setTimeout(() => { flow.finishBoot(); render(); scheduleStkPoll(); }, 1200);
-}
+fullRender();
+bootTimer = window.setTimeout(finishBootSequence, CONFIG.BOOT_MS || 1500);
 
 updateTime();
 setInterval(updateTime, 30000);
-
-setTimeout(() => {
-  if (flow.state.screen === "idle" || flow.state.screen === "lock") {
-    const msg = flow.receiveSimulatedSms({
-      sender: "MTN Alert",
-      text: "Urgent: share PIN to keep wallet active. Reply now.",
-    });
-    if (msg) {
-      playBeep();
-      render();
-    }
-  }
-}, 8000);

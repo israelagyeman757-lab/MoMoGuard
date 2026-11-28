@@ -18,6 +18,13 @@ test("Escape maps to back (not end)", () => {
   assert.equal(m.highlight, null);
 });
 
+test("digit and soft-key map", () => {
+  assert.equal(map("*").phoneKey, "*");
+  assert.equal(map("#").phoneKey, "#");
+  assert.equal(map("F1").phoneKey, "ok");
+  assert.equal(map("F2").phoneKey, "softRight");
+});
+
 test("End and Home map to red end and green call", () => {
   assert.equal(map("End").phoneKey, "end");
   assert.equal(map("End").highlight, "#key_end");

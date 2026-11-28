@@ -13,7 +13,10 @@ function starHashId(key) {
  * @returns {{ phoneKey: string, highlight: string } | null}
  */
 export function mapKeyboardEvent(event) {
-  const { key, ctrlKey, metaKey, altKey } = { ...NO_MOD, ...event };
+  const key = event.key;
+  const ctrlKey = event.ctrlKey ?? NO_MOD.ctrlKey;
+  const metaKey = event.metaKey ?? NO_MOD.metaKey;
+  const altKey = event.altKey ?? NO_MOD.altKey;
   if (ctrlKey || metaKey || altKey) return null;
 
   if (key === "F1" || key === "[") {

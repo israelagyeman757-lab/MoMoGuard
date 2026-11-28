@@ -12,6 +12,9 @@ __pycache__/
 # local research material (not part of the build)
 Read stuff/
 
+# javascript
+node_modules/
+
 # OS / editor
 Thumbs.db
 .DS_Store
