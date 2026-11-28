@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1a1a1a">
   <meta name="description" content="MoMoGuard feature phone">
   <title>MoMoGuard</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="/phone-page/styles.css">
 </head>
 <body>
   <div id="demo_toast" class="demo-toast" role="status" aria-live="polite"></div>
@@ -24,28 +24,27 @@
             <span id="screen_time">09:41</span>
             <span class="battery"><i></i></span>
           </div>
-          <div class="screen-content" id="screen_content" aria-live="polite"></div>
+          <div class="screen-body">
+            <div class="screen-content" id="screen_content" aria-live="polite"></div>
+            <div class="screen-soft-bar" aria-hidden="true">
+              <span class="screen-soft-left" id="screen_soft_left"></span>
+              <span class="screen-soft-right" id="screen_soft_right"></span>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="soft-key-row" aria-label="Soft keys">
-        <button type="button" class="key soft-key" data-key="back" id="soft_left" aria-label="Left soft key">
+        <button type="button" class="key soft-key soft-left" data-key="ok" id="soft_left" aria-label="Left soft key">
           <span class="soft-chevron" aria-hidden="true">◀</span>
-          <span id="soft_left_label">—</span>
         </button>
-        <button type="button" class="key soft-key" data-key="ok" id="soft_right" aria-label="Right soft key">
-          <span id="soft_right_label">Menu</span>
+        <button type="button" class="key soft-key soft-right" data-key="softRight" id="soft_right" aria-label="Right soft key">
           <span class="soft-chevron" aria-hidden="true">▶</span>
         </button>
       </div>
 
       <div class="phone-controls">
-        <div class="action-keys">
-          <button class="key utility-key call-key" id="key_call" data-key="call" aria-label="Call"><span class="util-glyph call-glyph" aria-hidden="true"></span></button>
-          <button class="key utility-key end-key" id="key_end" data-key="end" aria-label="End"><span class="util-glyph end-glyph" aria-hidden="true"></span></button>
-          <button class="key utility-key" id="key_clear" data-key="clear" aria-label="Clear"><span class="util-glyph clear-glyph" aria-hidden="true"></span></button>
-          <button class="key utility-key" id="key_back" data-key="back" aria-label="Back"><span class="util-glyph back-glyph" aria-hidden="true"></span></button>
-        </div>
+        <button class="key utility-key call-key" id="key_call" data-key="call" aria-label="Call"><span class="util-glyph call-glyph" aria-hidden="true"></span></button>
 
         <div class="navigation" aria-label="Navigation">
           <button class="key nav-key nav-up" id="key_up" data-key="up" aria-label="Up">▲</button>
@@ -54,6 +53,8 @@
           <button class="key nav-key nav-right" id="key_right" data-key="right" aria-label="Right">▶</button>
           <button class="key nav-key nav-down" id="key_down" data-key="down" aria-label="Down">▼</button>
         </div>
+
+        <button class="key utility-key end-key" id="key_end" data-key="end" aria-label="End"><span class="util-glyph end-glyph" aria-hidden="true"></span></button>
       </div>
 
       <div class="keypad" aria-label="Keypad">
@@ -72,18 +73,22 @@
       </div>
     </div>
 
+    <div class="demo-controls">
+      <button type="button" id="demo_stk_push" class="demo-stk-button">Send STK alert (demo)</button>
+    </div>
+
     <details class="keyboard-legend">
       <summary>Keyboard</summary>
       <dl class="keyboard-legend-list">
         <div><dt>0–9, *, #</dt><dd>Keypad</dd></div>
         <div><dt>Arrows</dt><dd>D-pad</dd></div>
         <div><dt>Enter</dt><dd>OK</dd></div>
-        <div><dt>F1 / [</dt><dd>Left soft key</dd></div>
-        <div><dt>F2 / ]</dt><dd>Right soft key</dd></div>
-        <div><dt>Backspace</dt><dd>Clear</dd></div>
+        <div><dt>F1 / [</dt><dd>Left soft (Select)</dd></div>
+        <div><dt>F2 / ]</dt><dd>Right soft (Menu / Back)</dd></div>
+        <div><dt>Backspace</dt><dd>Clear entry</dd></div>
         <div><dt>Esc</dt><dd>Back</dd></div>
-        <div><dt>F3 / Home</dt><dd>Call / send</dd></div>
-        <div><dt>F4 / End</dt><dd>End / home</dd></div>
+        <div><dt>F3 / Home</dt><dd>Green call</dd></div>
+        <div><dt>F4 / End</dt><dd>Red end</dd></div>
       </dl>
     </details>
   </main>
@@ -94,6 +99,6 @@
   <button id="reset_demo" type="button" class="visually-hidden" hidden>Reset</button>
   <span id="reset_status" class="visually-hidden" role="status" hidden></span>
 
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="/phone-page/app.js"></script>
 </body>
 </html>

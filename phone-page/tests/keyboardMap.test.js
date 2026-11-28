@@ -15,7 +15,7 @@ function map(key, extras = {}) {
 test("Escape maps to back (not end)", () => {
   const m = map("Escape");
   assert.equal(m.phoneKey, "back");
-  assert.equal(m.highlight, "#key_back");
+  assert.equal(m.highlight, null);
 });
 
 test("End and Home map to red end and green call", () => {

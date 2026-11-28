@@ -37,4 +37,15 @@ describe("controllerAdapter", () => {
     assert.match(calls[0].url, /\/reports$/);
     assert.equal(calls[0].options.method, "POST");
   });
+
+  test("stk push poll and enqueue", async () => {
+    calls = [];
+    const adapter = await import("../services/controllerAdapter.js");
+    await adapter.pollStkPush("demo-phone");
+    assert.match(calls[0].url, /\/stk\/push\?consumer=demo-phone$/);
+    calls = [];
+    await adapter.enqueueStkPush({ text: "alert" });
+    assert.match(calls[0].url, /\/stk\/push$/);
+    assert.equal(calls[0].options.method, "POST");
+  });
 });

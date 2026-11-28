@@ -1,10 +1,28 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "trailingSlash": true,
   "functions": {
     "api/index.py": {
       "maxDuration": 30
     }
   },
+  "redirects": [
+    {
+      "source": "/phone-page",
+      "destination": "/phone-page/",
+      "permanent": false
+    },
+    {
+      "source": "/community-console",
+      "destination": "/community-console/",
+      "permanent": false
+    },
+    {
+      "source": "/training-app",
+      "destination": "/training-app/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api",
@@ -19,16 +37,16 @@
       "destination": "/phone-page/index.html"
     },
     {
-      "source": "/phone-page",
+      "source": "/phone-page/",
       "destination": "/phone-page/index.html"
     },
     {
-      "source": "/training-app",
-      "destination": "/training-app/index.html"
+      "source": "/community-console/",
+      "destination": "/community-console/index.html"
     },
     {
-      "source": "/community-console",
-      "destination": "/community-console/index.html"
+      "source": "/training-app/",
+      "destination": "/training-app/index.html"
     }
   ]
 }

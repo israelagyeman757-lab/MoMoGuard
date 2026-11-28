@@ -1,11 +1,15 @@
 import { T9Input } from "./t9.js";
 import {
+  CARRIER_MENU,
+  MOMO_MENU,
+  REPORT_TYPES,
+} from "./menuData.js";
+import {
   DEMO_SCAM_NUMBER,
   INITIAL_MESSAGES,
   mockCheckNumber,
   mockTrainingQuestions,
   mockWarnings,
-  REPORT_TYPE_KEYS,
 } from "./mockResponses.js";
 
 export const APP_ORDER = ["phone", "messages", "contacts", "calculator", "calendar", "camera", "settings", "tools", "simToolkit"];
@@ -31,6 +35,7 @@ export class PhoneFlow {
       selectedMessage: 0,
       selectedMenu: 0,
       stkMenuIndex: 0,
+      quizOptionIndex: 0,
       message: "",
       messageTag: "",
       notice: "",
@@ -41,8 +46,9 @@ export class PhoneFlow {
       lookup: null,
       report: { phone_number: "", scam_type: "", description: "" },
       warnings: [],
-      training: { questions: [], index: 0, answers: [], score: null },
+      training: { questions: [], index: 0, answers: [], score: null, scenarios: [] },
       smsReportNumber: "",
+      stkPopup: null,
     };
     this.t9.reset();
     this.t9.setMode("number");
@@ -52,6 +58,10 @@ export class PhoneFlow {
     this.state.history.push(this.state.screen);
     this.state.screen = screen;
     this.state.notice = "";
+  if (["stkCarrier", "stkMomo", "stkReportType", "stkTrainingQ"].includes(screen)) {
+      this.state.selectedMenu = 0;
+    }
+    if (screen === "stkMomo") this.state.stkMenuIndex = 0;
     if (INPUT_SCREENS.has(screen)) {
       this.t9.reset();
       this.t9.setMode(screen === "stkReportDesc" ? "text" : "number");
@@ -69,18 +79,82 @@ export class PhoneFlow {
     if (this.state.screen === "boot") this.state.screen = "lock";
   }
 
-  /** Messages index helpers for list menus */
   menuCountForScreen(screen) {
-    if (screen === "stkMomo") return 6;
-    if (screen === "stkReportType") return 7;
-    if (screen === "stkCarrier") return 1;
+    if (screen === "stkMomo") return MOMO_MENU.length;
+    if (screen === "stkReportType") return REPORT_TYPES.length;
+    if (screen === "stkCarrier") return CARRIER_MENU.length;
     if (screen === "apps") return APP_ORDER.length;
     if (screen === "messages") return this.messages.length;
     return 0;
   }
 
+  _listIndexForScreen(screen) {
+    if (screen === "stkMomo") return this.state.stkMenuIndex;
+    return this.state.selectedMenu;
+  }
+
+  _setListIndex(screen, index) {
+    if (screen === "stkMomo") this.state.stkMenuIndex = index;
+    else this.state.selectedMenu = index;
+  }
+
+  _moveListMenu(screen, delta) {
+    const count = this.menuCountForScreen(screen);
+    if (!count) return;
+    const next = Math.min(count - 1, Math.max(0, this._listIndexForScreen(screen) + delta));
+    this._setListIndex(screen, next);
+  }
+
+  _activateListMenu(screen) {
+    if (screen === "stkCarrier") {
+      this.state.stkMenuIndex = 0;
+      this._go("stkMomo");
+      return;
+    }
+    if (screen === "stkMomo") {
+      const item = MOMO_MENU[this.state.stkMenuIndex];
+      if (!item) return;
+      if (item.id === "exit") {
+        this.reset();
+        this.state.screen = "idle";
+        return;
+      }
+      if (item.id.startsWith("loading:")) {
+        this.state.loadingKind = item.id.split(":")[1];
+        this._replace("loading");
+        return;
+      }
+      if (item.id === "stkTrainingScenarios") {
+        this.state.training.scenarios = [
+          { title: "Fake reversal", summary: "Caller asks you to send money back you never received." },
+          { title: "PIN trap", summary: "Urgent SMS asks for your MoMo PIN to verify your wallet." },
+        ];
+      }
+      this._go(item.id);
+      return;
+    }
+    if (screen === "stkReportType") {
+      const entry = REPORT_TYPES[this.state.selectedMenu];
+      if (!entry) return;
+      this.state.report.scam_type = entry.scam_type;
+      this._go("stkReportDesc");
+      return;
+    }
+    if (screen === "stkTrainingQ") {
+      const q = this.state.training.questions[this.state.training.index];
+      const selected = q?.answer_options?.[this.state.quizOptionIndex];
+      if (!selected) return;
+      this.state.training.answers.push({ question_id: q.id, selected });
+      this.state.training.index += 1;
+      this.state.quizOptionIndex = 0;
+      if (this.state.training.index >= this.state.training.questions.length) {
+        this.finishTrainingQuiz();
+      }
+    }
+  }
+
   _handleInputKey(key, now) {
-  if (key === "clear") {
+    if (key === "clear") {
       this.t9.clear();
       return;
     }
@@ -154,7 +228,14 @@ export class PhoneFlow {
 
   applyTrainingQuestions(data) {
     const qs = data?.questions || [];
-    this.state.training = { questions: qs.slice(0, 2), index: 0, answers: [], score: null };
+    this.state.training = {
+      ...this.state.training,
+      questions: qs.slice(0, 2),
+      index: 0,
+      answers: [],
+      score: null,
+    };
+    this.state.quizOptionIndex = 0;
     if (!this.state.training.questions.length) {
       this.state.message = "No training questions.";
       this._replace("error");
@@ -169,7 +250,9 @@ export class PhoneFlow {
     questions.forEach((q, i) => {
       if (answers[i]?.selected === q.correct_answer) correct += 1;
     });
-    this.state.training.score = Math.round((correct / questions.length) * 100);
+    this.state.training.score = questions.length
+      ? Math.round((correct / questions.length) * 100)
+      : 0;
     this._replace("stkTrainingDone");
   }
 
@@ -190,6 +273,22 @@ export class PhoneFlow {
     this.applyReportResult({ status: "UNVERIFIED", id: 1 });
   }
 
+  showStkPopup(payload) {
+    this.state.stkPopup = {
+      text: payload?.text || "MoMoGuard alert",
+      more: payload?.more ?? false,
+      report: payload?.report ?? false,
+    };
+    if (this.state.screen === "idle") {
+      this.state.screen = "stkPopup";
+    }
+  }
+
+  dismissStkPopup() {
+    this.state.stkPopup = null;
+    if (this.state.screen === "stkPopup") this.state.screen = "idle";
+  }
+
   receiveSimulatedSms({ sender = "UNKNOWN", senderNumber = DEMO_SCAM_NUMBER, text = "" } = {}) {
     const message = {
       id: `sms-${Date.now()}`,
@@ -206,6 +305,18 @@ export class PhoneFlow {
   }
 
   press(key, now = Date.now()) {
+    if (key === "softRight") {
+      if (this.state.screen === "idle") {
+        this._go("apps");
+        return;
+      }
+      if (this.state.screen === "lock") {
+        this.state.lockAwaitStar = true;
+        return;
+      }
+      key = "back";
+    }
+
     if (key === "end") {
       this.reset();
       this.state.screen = "idle";
@@ -213,6 +324,30 @@ export class PhoneFlow {
     }
 
     const { screen } = this.state;
+
+    if (screen === "stkPopup") {
+      const popup = this.state.stkPopup;
+      if (key === "back") {
+        this.dismissStkPopup();
+        return;
+      }
+      if (key === "ok" && popup?.more) {
+        this.state.loadingKind = "warnings";
+        this.state.stkPopup = null;
+        this._replace("loading");
+        return;
+      }
+      if (key === "call" && popup?.report) {
+        this.state.report = { phone_number: "", scam_type: "", description: "From STK alert" };
+        this.state.stkPopup = null;
+        this._go("stkReportNumber");
+        return;
+      }
+      if (key === "ok") {
+        this.dismissStkPopup();
+      }
+      return;
+    }
 
     if (screen === "lock") {
       if (key === "ok") this.state.lockAwaitStar = true;
@@ -224,6 +359,10 @@ export class PhoneFlow {
     }
 
     if (INPUT_SCREENS.has(screen)) {
+      if (key === "back") {
+        this._back();
+        return;
+      }
       this._handleInputKey(key, now);
       return;
     }
@@ -239,6 +378,27 @@ export class PhoneFlow {
     }
 
     if (screen === "boot") return;
+
+    const menuScreens = new Set(["stkCarrier", "stkMomo", "stkReportType"]);
+    if (menuScreens.has(screen)) {
+      if (key === "up") this._moveListMenu(screen, -1);
+      if (key === "down") this._moveListMenu(screen, 1);
+      if (key === "ok") this._activateListMenu(screen);
+      return;
+    }
+
+    if (screen === "stkTrainingQ") {
+      const q = this.state.training.questions[this.state.training.index];
+      const opts = q?.answer_options || [];
+      if (key === "up") {
+        this.state.quizOptionIndex = Math.max(0, this.state.quizOptionIndex - 1);
+      }
+      if (key === "down") {
+        this.state.quizOptionIndex = Math.min(opts.length - 1, this.state.quizOptionIndex + 1);
+      }
+      if (key === "ok") this._activateListMenu("stkTrainingQ");
+      return;
+    }
 
     if (screen === "idle") {
       if (key === "ok") this._go("apps");
@@ -272,7 +432,7 @@ export class PhoneFlow {
     }
 
     if (screen === "sms") {
-      if (key === "1" && this.state.messageTag === "scam") {
+      if (key === "ok" && this.state.messageTag === "scam") {
         this.state.report = { phone_number: this.state.smsReportNumber, scam_type: "", description: "" };
         this._go("stkReportType");
         this.state.selectedMenu = 0;
@@ -280,55 +440,9 @@ export class PhoneFlow {
       return;
     }
 
-    if (screen === "stkCarrier") {
-      if (key === "ok" || key === "1") {
-        this.state.stkMenuIndex = 0;
-        this._go("stkMomo");
-      }
-      return;
-    }
-
-    if (screen === "stkMomo") {
-      const opts = {
-        "1": "stkCheckInput",
-        "2": "stkReportNumber",
-        "3": "loading",
-        "4": "loading",
-        "5": "stkHelp",
-      };
-      if (key === "5") { this._go("stkHelp"); return; }
-      if (key === "6") { this.reset(); this.state.screen = "idle"; return; }
-      if (key === "3" || key === "4") {
-        this.state.loadingKind = key === "3" ? "warnings" : "training";
-        this._replace("loading");
-        return;
-      }
-      if (opts[key]) this._go(opts[key]);
-      return;
-    }
-
-    if (screen === "stkReportType") {
-      const type = REPORT_TYPE_KEYS[key];
-      if (!type) return;
-      this.state.report.scam_type = type;
-      this._go("stkReportDesc");
-      return;
-    }
-
-    if (screen === "stkTrainingQ") {
-      const q = this.state.training.questions[this.state.training.index];
-      const idx = Number(key) - 1;
-      if (idx < 0 || idx >= q.answer_options.length) return;
-      const selected = q.answer_options[idx];
-      this.state.training.answers.push({ question_id: q.id, selected });
-      this.state.training.index += 1;
-      if (this.state.training.index >= this.state.training.questions.length) {
-        this.finishTrainingQuiz();
-      }
-      return;
-    }
-
-    if (screen === "stkCheckResult" || screen === "stkReportDone" || screen === "stkWarnings" || screen === "stkTrainingDone" || screen === "stkHelp") {
+    if (screen === "stkCheckResult" || screen === "stkReportDone" || screen === "stkWarnings"
+        || screen === "stkTrainingDone" || screen === "stkHelp" || screen === "stkTips"
+        || screen === "stkTrainingScenarios" || screen === "stkTrainingResults") {
       if (key === "back" || key === "ok") {
         this.state.screen = "stkMomo";
       }

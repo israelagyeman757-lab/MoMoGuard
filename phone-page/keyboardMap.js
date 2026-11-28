@@ -17,10 +17,10 @@ export function mapKeyboardEvent(event) {
   if (ctrlKey || metaKey || altKey) return null;
 
   if (key === "F1" || key === "[") {
-    return { phoneKey: "back", highlight: "#soft_left" };
+    return { phoneKey: "ok", highlight: "#soft_left" };
   }
   if (key === "F2" || key === "]") {
-    return { phoneKey: "ok", highlight: "#soft_right" };
+    return { phoneKey: "softRight", highlight: "#soft_right" };
   }
   if (key === "F3" || key === "Home") {
     return { phoneKey: "call", highlight: "#key_call" };
@@ -32,10 +32,10 @@ export function mapKeyboardEvent(event) {
     return { phoneKey: "ok", highlight: "#key_ok" };
   }
   if (key === "Backspace") {
-    return { phoneKey: "clear", highlight: "#key_clear" };
+    return { phoneKey: "clear", highlight: null };
   }
   if (key === "Escape") {
-    return { phoneKey: "back", highlight: "#key_back" };
+    return { phoneKey: "back", highlight: null };
   }
   if (key === "ArrowUp") return { phoneKey: "up", highlight: "#key_up" };
   if (key === "ArrowDown") return { phoneKey: "down", highlight: "#key_down" };
@@ -51,8 +51,8 @@ export const KEYBOARD_LEGEND = [
   { keys: "0–9, *, #", action: "Keypad (T9 uses same timing as taps)" },
   { keys: "Arrows", action: "D-pad" },
   { keys: "Enter", action: "OK / select" },
-  { keys: "F1 or [", action: "Left soft key" },
-  { keys: "F2 or ]", action: "Right soft key" },
+  { keys: "F1 or [", action: "Left soft key (Select)" },
+  { keys: "F2 or ]", action: "Right soft key (Menu / Back)" },
   { keys: "Backspace", action: "Clear (C)" },
   { keys: "Esc", action: "Back" },
   { keys: "F3 or Home", action: "Green call / send" },

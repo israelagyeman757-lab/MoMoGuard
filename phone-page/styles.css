@@ -166,9 +166,16 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
   background: var(--lcd-dim);
 }
 
-.screen-content {
+.screen-body {
+  display: flex;
+  flex-direction: column;
   height: calc(100% - 18px);
-  padding: 8px 8px 6px;
+}
+
+.screen-content {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 8px 4px;
   overflow-y: auto;
   font-family: "Courier New", Consolas, monospace;
   font-size: 13px;
@@ -438,12 +445,47 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 .alert-list { margin: 0; padding: 0; list-style: none; font-size: 11px; font-weight: 400; line-height: 1.25; }
 .alert-list li { margin-bottom: 4px; }
 
+.screen-soft-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 14px;
+  padding: 0 4px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--lcd-dim);
+}
+.screen-soft-left { min-width: 52px; text-align: left; }
+.screen-soft-right { min-width: 52px; text-align: right; }
+
+.stk-list { margin: 0; padding: 0; list-style: none; }
+.stk-list-item { padding: 2px 4px; font-size: 12px; line-height: 1.25; border: 1px solid transparent; }
+.stk-list-item.is-active {
+  background: rgba(255, 255, 255, .25);
+  border-color: rgba(40, 60, 30, .35);
+  box-shadow: inset 0 0 0 1px rgba(40, 60, 30, .15);
+}
+
+.stk-popup { padding: 4px 0; }
+.demo-controls { margin-top: 14px; }
+.demo-stk-button {
+  padding: 8px 14px;
+  border: 1px solid #3d444d;
+  border-radius: 6px;
+  background: #2d333b;
+  color: #e8eaed;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.demo-stk-button:hover { border-color: var(--ok); color: #fff; }
+
 .soft-key-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 0 2px;
+  gap: 24px;
+  margin-top: 6px;
+  padding: 0 12px;
 }
 .soft-key {
   display: flex;
@@ -469,24 +511,20 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 .phone-controls {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: 1fr 150px 1fr;
-  gap: 8px;
+  grid-template-columns: 56px 1fr 56px;
+  gap: 10px;
   align-items: center;
-}
-.action-keys {
-  grid-column: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  justify-items: center;
 }
 .navigation {
-  grid-column: 2;
   display: grid;
-  grid-template-columns: 44px 62px 44px;
-  grid-template-rows: 22px 38px 22px;
-  gap: 2px;
+  grid-template-columns: 46px 68px 46px;
+  grid-template-rows: 24px 42px 24px;
+  gap: 3px;
   justify-self: center;
 }
+#key_call { grid-column: 1; justify-self: end; width: 52px; }
+#key_end { grid-column: 3; justify-self: start; width: 52px; }
 
 .key {
   border: 0;
@@ -557,7 +595,7 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 .ok-key {
   grid-column: 2;
   grid-row: 2;
-  border-radius: 8px;
+  border-radius: 50%;
   background: linear-gradient(180deg, #e8c04a, #c49a22);
   color: #1a1a1a;
   font-size: 11px;
@@ -596,7 +634,7 @@ button:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 
 .phone.is-locked .keypad .key,
 .phone.is-locked .navigation .key,
-.phone.is-locked .action-keys .key:not(.end-key),
+.phone.is-locked .phone-controls .call-key,
 .phone.is-locked .soft-key-row .key {
   cursor: not-allowed;
   opacity: .45;
