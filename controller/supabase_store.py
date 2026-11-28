@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
 
@@ -25,11 +25,15 @@ _DELETE_ORDER = (
     "training_recommendations",
     "training_questions",
     "training_scenarios",
+    "holds",
+    "pair_history",
     "warnings",
     "reports",
     "numbers",
     "users",
 )
+
+HOLD_STATUSES = frozenset({"held", "released", "reversed", "extended"})
 
 
 def _now() -> str:
@@ -625,6 +629,189 @@ class SupabaseStore:
             )
         if rows:
             self._rest.insert_many("training_recommendations", rows)
+
+    # --- holds ---
+
+    def insert_hold(self, data: dict[str, Any]) -> dict:
+        hold_minutes = int(data.get("hold_minutes") or 0)
+        created_at = _now()
+        release_at = (
+            datetime.now(timezone.utc) + timedelta(minutes=hold_minutes)
+        ).replace(tzinfo=None).isoformat(timespec="seconds")
+        row = self._rest.insert(
+            "holds",
+            {
+                "payer": normalize_phone(data["payer"]),
+                "payee": normalize_phone(data["payee"]),
+                "amount": float(data["amount"]),
+                "risk_level": data["risk_level"],
+                "reasons": data.get("reasons") or [],
+                "hold_minutes": hold_minutes,
+                "created_at": created_at,
+                "release_at": release_at,
+                "status": "held",
+                "sandbox_txn_ref": data.get("sandbox_txn_ref"),
+                "sandbox_ticket": data.get("sandbox_ticket"),
+            },
+        )
+        return self._hold_row(row or {})
+
+    def get_hold(self, hold_id: int) -> dict | None:
+        row = self._rest.select_one("holds", id=f"eq.{hold_id}")
+        return self._hold_row(row) if row else None
+
+    def list_holds_recent(self, *, hours: int = 24) -> list[dict]:
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=hours)
+        ).replace(tzinfo=None).isoformat(timespec="seconds")
+        rows = self._rest.select(
+            "holds",
+            filters={"created_at": f"gte.{cutoff}"},
+            order="created_at.desc",
+        )
+        return [self._hold_row(r) for r in rows]
+
+    def delete_holds_for_pairs(self, pairs: list[tuple[str, str]]) -> None:
+        for payer, payee in pairs:
+            self._rest.delete_filtered(
+                "holds",
+                {
+                    "payer": f"eq.{quote(normalize_phone(payer), safe='')}",
+                    "payee": f"eq.{quote(normalize_phone(payee), safe='')}",
+                },
+            )
+
+    def replace_demo_holds(self, specs: list[dict[str, Any]]) -> None:
+        pairs = [(s["payer"], s["payee"]) for s in specs]
+        self.delete_holds_for_pairs(pairs)
+        for spec in specs:
+            self.insert_hold(spec)
+
+    def list_holds(self, *, status: str | None = None, payee: str | None = None) -> list[dict]:
+        filters: dict[str, str] = {}
+        if status:
+            filters["status"] = f"eq.{status}"
+        if payee:
+            filters["payee"] = f"eq.{quote(normalize_phone(payee), safe='')}"
+        rows = self._rest.select("holds", filters=filters or None, order="created_at.desc")
+        return [self._hold_row(r) for r in rows]
+
+    def active_hold_for_payee(self, payee: str) -> dict | None:
+        payee = normalize_phone(payee)
+        now = _now()
+        rows = self._rest.select(
+            "holds",
+            filters={
+                "payee": f"eq.{quote(payee, safe='')}",
+                "status": "eq.held",
+                "release_at": f"gt.{now}",
+            },
+            order="release_at.desc",
+            limit=1,
+        )
+        return self._hold_row(rows[0]) if rows else None
+
+    def update_hold_status(
+        self, hold_id: int, status: str, *, rep_id: str | None = None
+    ) -> dict | None:
+        if status not in HOLD_STATUSES:
+            raise ValueError(f"invalid hold status: {status}")
+        patch: dict[str, Any] = {"status": status}
+        if rep_id:
+            patch["rep_id"] = rep_id
+        rows = self._rest.patch("holds", {"id": f"eq.{hold_id}"}, patch)
+        if not rows:
+            return self.get_hold(hold_id)
+        return self._hold_row(rows[0])
+
+    def extend_hold(self, hold_id: int, extra_minutes: int, *, rep_id: str | None = None) -> dict | None:
+        hold = self.get_hold(hold_id)
+        if not hold or hold["status"] not in ("held", "extended"):
+            return None
+        release_raw = hold.get("release_at") or _now()
+        try:
+            release = datetime.fromisoformat(str(release_raw).replace("Z", "+00:00"))
+        except ValueError:
+            release = datetime.now(timezone.utc)
+        new_release = (release + timedelta(minutes=extra_minutes)).replace(tzinfo=None).isoformat(
+            timespec="seconds"
+        )
+        patch = {
+            "release_at": new_release,
+            "hold_minutes": int(hold.get("hold_minutes") or 0) + extra_minutes,
+            "status": "extended",
+        }
+        if rep_id:
+            patch["rep_id"] = rep_id
+        rows = self._rest.patch("holds", {"id": f"eq.{hold_id}"}, patch)
+        return self._hold_row(rows[0]) if rows else self.get_hold(hold_id)
+
+    def expire_released_holds(self, *, payee: str | None = None) -> None:
+        now = _now()
+        filters: dict[str, str] = {
+            "status": "in.(held,extended)",
+            "release_at": f"lte.{now}",
+        }
+        if payee:
+            filters["payee"] = f"eq.{quote(normalize_phone(payee), safe='')}"
+        rows = self._rest.select("holds", filters=filters)
+        for row in rows:
+            self._rest.patch("holds", {"id": f"eq.{row['id']}"}, {"status": "released"})
+
+    def get_pair_history(self, payer: str, payee: str) -> dict | None:
+        return self._rest.select_one(
+            "pair_history",
+            payer=f"eq.{quote(normalize_phone(payer), safe='')}",
+            payee=f"eq.{quote(normalize_phone(payee), safe='')}",
+        )
+
+    def record_pair_payment(self, payer: str, payee: str) -> None:
+        payer = normalize_phone(payer)
+        payee = normalize_phone(payee)
+        existing = self.get_pair_history(payer, payee)
+        if existing:
+            self._rest.patch(
+                "pair_history",
+                {"id": f"eq.{existing['id']}"},
+                {"payment_count": int(existing.get("payment_count") or 0) + 1},
+            )
+        else:
+            self._rest.insert(
+                "pair_history",
+                {
+                    "payer": payer,
+                    "payee": payee,
+                    "first_seen": _now(),
+                    "payment_count": 1,
+                },
+            )
+
+    def _hold_row(self, row: dict) -> dict:
+        reasons = row.get("reasons") or []
+        if isinstance(reasons, str):
+            reasons = json.loads(reasons)
+        return {
+            "id": row["id"],
+            "payer": row["payer"],
+            "payee": row["payee"],
+            "amount": row["amount"],
+            "risk_level": row["risk_level"],
+            "reasons": reasons,
+            "hold_minutes": row["hold_minutes"],
+            "created_at": row["created_at"],
+            "release_at": row["release_at"],
+            "status": row["status"],
+            "rep_id": row.get("rep_id"),
+            "sandbox_txn_ref": row.get("sandbox_txn_ref"),
+            "sandbox_ticket": row.get("sandbox_ticket"),
+        }
+
+    def update_hold_sandbox_ticket(self, hold_id: int, ticket: str | None) -> None:
+        self._rest.patch(
+            "holds",
+            {"id": f"eq.{hold_id}"},
+            {"sandbox_ticket": ticket},
+        )
 
     def overview_stats(self) -> dict:
         reports = self._rest.select("reports")

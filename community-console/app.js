@@ -233,6 +233,137 @@ async function loadWarnings() {
   renderWarnings(data.warnings || []);
 }
 
+function localDayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatDurationLeft(totalMins) {
+  if (totalMins < 1) return "0m left";
+  if (totalMins < 60) return `${totalMins}m left`;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (m === 0) return `${h}h left`;
+  return `${h}h ${m}m left`;
+}
+
+function formatHoldUntil(iso) {
+  if (!iso) return "—";
+  const dt = new Date(String(iso).includes("Z") ? iso : `${iso}Z`);
+  if (Number.isNaN(dt.getTime())) return "—";
+  const now = new Date();
+  const hhmm = dt.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (localDayKey(dt) === localDayKey(tomorrow) && localDayKey(dt) !== localDayKey(now)) {
+    return `Tomorrow ${hhmm}`;
+  }
+  const totalMins = Math.max(0, Math.round((dt.getTime() - now.getTime()) / 60_000));
+  return `${hhmm} (${formatDurationLeft(totalMins)})`;
+}
+
+const HOLD_REASON_EN = {
+  new_number_pair: "First payment from this number to you",
+  flagged_high: "Number reported to Walɔ",
+  flagged_medium: "Number under review in Walɔ",
+  amount_above_500_ghs: "Large amount (over GHS 500)",
+  recipient_wallet_under_7_days: "Your wallet was opened recently",
+  many_distinct_payers_24h: "Many different senders in the last 24 hours",
+  recent_sim_swap: "Recent SIM swap on sender line",
+  funds_held: "Funds temporarily held by Walɔ",
+};
+
+function holdReasonText(h) {
+  if (h.reason_labels?.en) return h.reason_labels.en;
+  return HOLD_REASON_EN.funds_held;
+}
+
+function riskChip(level) {
+  const key = (level || "LOW").toUpperCase();
+  const cls = { HIGH: "chip-risk-high", MEDIUM: "chip-risk-medium", LOW: "chip-risk-low" }[key] || "chip-risk-low";
+  return `<span class="chip ${cls}">${key}</span>`;
+}
+
+function holdStatusChip(status) {
+  const st = (status || "held").toLowerCase();
+  const label = {
+    held: "Held",
+    extended: "Held",
+    released: "Released",
+    reversed: "Reversed",
+  }[st] || st;
+  return `<span class="chip chip-hold-${st}">${label}</span>`;
+}
+
+function renderHolds(holds) {
+  const body = document.getElementById("holds_body");
+  const empty = document.getElementById("holds_empty");
+  const table = document.getElementById("holds_table");
+  if (!holds.length) {
+    body.innerHTML = "";
+    empty.hidden = false;
+    if (table) table.hidden = true;
+    return;
+  }
+  empty.hidden = true;
+  if (table) table.hidden = false;
+  body.innerHTML = holds.map(h => {
+    const st = (h.status || "held").toLowerCase();
+    const active = st === "held" || st === "extended";
+    const actions = active
+      ? `<div class="row-actions row-actions-holds">
+          <button type="button" class="btn ghost btn-compact hold-release" data-id="${h.id}">Release</button>
+          <button type="button" class="btn ghost btn-compact hold-extend" data-id="${h.id}">Extend</button>
+          <button type="button" class="btn ghost btn-compact hold-reverse" data-id="${h.id}">Reverse</button>
+        </div>`
+      : "—";
+    return `
+    <tr data-id="${h.id}">
+      <td>#${h.id}</td>
+      <td>${h.payer_masked || "—"}</td>
+      <td>${h.payee_masked || "—"}</td>
+      <td class="hold-amount">GHS ${Number(h.amount).toFixed(2)}</td>
+      <td>${riskChip(h.risk_level)}</td>
+      <td>${holdReasonText(h)}</td>
+      <td>${formatHoldUntil(h.release_at)}</td>
+      <td>${holdStatusChip(h.status)}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join("");
+
+  async function act(id, path, body = {}) {
+    try {
+      await api(path, { method: "POST", body: JSON.stringify(body) });
+      showToast(`Hold #${id} updated`);
+      await loadHolds();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+  body.querySelectorAll(".hold-release").forEach(btn => {
+    btn.addEventListener("click", () => act(btn.dataset.id, `/holds/${btn.dataset.id}/release`));
+  });
+  body.querySelectorAll(".hold-extend").forEach(btn => {
+    btn.addEventListener("click", () => act(btn.dataset.id, `/holds/${btn.dataset.id}/extend`, { extra_minutes: 60 }));
+  });
+  body.querySelectorAll(".hold-reverse").forEach(btn => {
+    btn.addEventListener("click", () => act(btn.dataset.id, `/holds/${btn.dataset.id}/reverse`));
+  });
+}
+
+async function loadHolds(status = "recent") {
+  setLoading("holds_loading", true);
+  try {
+    const data = await api(`/holds?status=${encodeURIComponent(status)}`);
+    renderHolds(data.holds || []);
+  } finally {
+    setLoading("holds_loading", false);
+  }
+}
+
 async function ensureDemoLogin(silent = false) {
   try {
     const data = await api("/auth/demo-login", {
@@ -261,6 +392,7 @@ document.getElementById("login_mod").addEventListener("click", () => {
       loadOverview();
       loadReports();
       loadWarnings();
+      loadHolds();
     }
   });
 });
@@ -268,6 +400,7 @@ document.getElementById("login_mod").addEventListener("click", () => {
 document.getElementById("load_overview").addEventListener("click", () => loadOverview().catch(e => showToast(e.message, "error")));
 document.getElementById("load_reports").addEventListener("click", () => loadReports().catch(e => showToast(e.message, "error")));
 document.getElementById("load_warnings").addEventListener("click", () => loadWarnings().catch(e => showToast(e.message, "error")));
+document.getElementById("load_holds").addEventListener("click", () => loadHolds().catch(e => showToast(e.message, "error")));
 
 document.getElementById("lookup_btn").addEventListener("click", async () => {
   const n = document.getElementById("lookup_number").value.trim();
@@ -331,5 +464,10 @@ ensureDemoLogin(true).then(ok => {
     loadOverview();
     loadReports();
     loadWarnings();
+    loadHolds();
   }
 });
+
+if (typeof window !== "undefined") {
+  window.loadHolds = loadHolds;
+}

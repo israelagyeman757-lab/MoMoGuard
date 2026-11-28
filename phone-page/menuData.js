@@ -15,6 +15,8 @@ export const STK_MENU = [
   { id: "quiz", labelKey: "stk.quiz" },
   { id: "results", labelKey: "stk.results" },
   { id: "check", labelKey: "stk.check" },
+  { id: "sendMoney", labelKey: "stk.sendMoney" },
+  { id: "withdraw", labelKey: "stk.withdraw" },
   { id: "report", labelKey: "stk.report" },
   { id: "warnings", labelKey: "stk.warnings" },
   { id: "tips", labelKey: "stk.tips" },
@@ -44,3 +46,9 @@ export const CALL_LOG = [
 ];
 
 export const TIPS = ["tips.one", "tips.two", "tips.three"];
+
+/** Demo payers for hold scenarios (Walɔ hold on receive). */
+export const SEND_DEMO_PAYERS = [
+  { id: "new", labelKey: "send.demoNew", payer: "0245000111", paymentsBefore: 0 },
+  { id: "flagged", labelKey: "send.demoFlagged", payer: "0244123456", paymentsBefore: 2 },
+];

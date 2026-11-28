@@ -27,4 +27,8 @@ export const CONFIG = {
   T9_TAP_MS: 800,
   LONG_ZERO_MS: 600,
   USER_ID: "phone-user-1",
+  /** Simulated MoMo wallet for this feature phone (payee in hold demo). */
+  WALLET_MSISDN: "0244111222",
+  DEMO_NEW_PAYEE: "0245000111",
+  DEMO_FLAGGED_PAYEE: "0244123456",
 };

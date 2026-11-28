@@ -9,6 +9,7 @@ def test_phone_check_number(client):
     data = r.json()
     assert data["result"] in (
         "WARNING_AVAILABLE",
+        "MULTIPLE_REPORTS",
         "REPORTS_FOUND",
         "NO_REPORTS_FOUND",
         "INVALID",

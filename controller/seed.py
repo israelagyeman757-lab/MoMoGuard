@@ -92,10 +92,62 @@ def seed_demo(store: Any, *, reset: bool = True) -> None:
             "loss_reported": False,
         }
     )
+    for r in store.list_reports(phone_number=DEMO_SCAM_NUMBER):
+        store.update_report_status(r["id"], "CORROBORATED")
+
+    seed_demo_holds(store)
+
+
+DEMO_WALLET_MSISDN = "0244111222"
+
+DEMO_HOLD_SPECS = (
+    {
+        "payer": "0245000111",
+        "payee": DEMO_WALLET_MSISDN,
+        "amount": 100,
+        "risk_level": "MEDIUM",
+        "reasons": ["new_number_pair"],
+        "hold_minutes": 30,
+    },
+    {
+        "payer": "0244888100",
+        "payee": DEMO_SCAM_NUMBER,
+        "amount": 350,
+        "risk_level": "HIGH",
+        "reasons": ["flagged_high"],
+        "hold_minutes": 1440,
+    },
+)
+
+
+def seed_demo_holds(store: Any) -> None:
+    """Exactly two distinct demo holds; idempotent via replace-by-demo-pair."""
+    if not hasattr(store, "insert_hold"):
+        return
+    if hasattr(store, "replace_demo_holds"):
+        store.replace_demo_holds(DEMO_HOLD_SPECS)
+        return
+    pairs = [(s["payer"], s["payee"]) for s in DEMO_HOLD_SPECS]
+    if hasattr(store, "delete_holds_for_pairs"):
+        store.delete_holds_for_pairs(pairs)
+    for spec in DEMO_HOLD_SPECS:
+        store.insert_hold(spec)
+
+
+def ensure_demo_holds(store: Any) -> None:
+    if not hasattr(store, "insert_hold"):
+        return
+    pairs = {(s["payer"], s["payee"]) for s in DEMO_HOLD_SPECS}
+    held = store.list_holds(status="held") if hasattr(store, "list_holds") else []
+    matching = [h for h in held if (h.get("payer"), h.get("payee")) in pairs]
+    if len(matching) == 2:
+        return
+    seed_demo_holds(store)
 
 
 def ensure_demo_seed(store: Any) -> None:
     """Load fictional demo data once (idempotent for durable Supabase startup)."""
     if store.get_user("mod-001"):
+        ensure_demo_holds(store)
         return
     seed_demo(store, reset=False)

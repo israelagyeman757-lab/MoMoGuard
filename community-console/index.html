@@ -26,6 +26,7 @@
     <button type="button" class="nav-tab" data-section="reports">Reports</button>
     <button type="button" class="nav-tab" data-section="lookup">Number check</button>
     <button type="button" class="nav-tab" data-section="warnings">Warnings</button>
+    <button type="button" class="nav-tab" data-section="holds">Holds</button>
     <button type="button" class="nav-tab" data-section="training">Training</button>
     <button type="button" class="nav-tab" data-section="stk">STK push</button>
   </nav>
@@ -94,6 +95,31 @@
         <button id="create_warning" type="button" class="btn primary">Save draft</button>
       </div>
       <div id="warnings_list" class="warnings-list"></div>
+    </section>
+
+    <section class="section card" id="section_holds" data-section="holds" hidden>
+      <div class="section-head">
+        <h2>Withdrawal holds</h2>
+        <button id="load_holds" type="button" class="btn ghost">Refresh</button>
+      </div>
+      <div id="holds_loading" class="loading" hidden>Loading holds…</div>
+      <div id="holds_empty" class="empty" hidden>No holds in the last 24 hours.</div>
+      <table class="data-table holds-table" id="holds_table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Payer</th>
+            <th>Payee</th>
+            <th>Amount</th>
+            <th>Risk</th>
+            <th>Reason</th>
+            <th>Until</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="holds_body"></tbody>
+      </table>
     </section>
 
     <section class="section card" id="section_training" data-section="training" hidden>

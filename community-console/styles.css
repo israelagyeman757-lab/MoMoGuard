@@ -237,11 +237,40 @@ input, textarea, select {
 .chip-ARCHIVED { background: #f3f4f6; color: #4b5563; }
 .chip-draft { background: #e5e7eb; color: #374151; }
 .chip-published { background: #d1fae5; color: #047857; }
+.chip-risk-high { background: #fee2e2; color: #b91c1c; font-weight: 600; }
+.chip-risk-medium { background: #fef3c7; color: #b45309; font-weight: 600; }
+.chip-risk-low { background: #f3f4f6; color: #6b7280; font-weight: 600; }
+.chip-hold-held { background: #dbeafe; color: #1d4ed8; text-transform: capitalize; }
+.chip-hold-extended { background: #dbeafe; color: #1d4ed8; text-transform: capitalize; }
+.chip-hold-released { background: #d1fae5; color: #047857; text-transform: capitalize; }
+.chip-hold-reversed { background: #fce7f3; color: #9d174d; text-transform: capitalize; }
 
 .row-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+.holds-table td.hold-amount,
+.holds-table td:last-child {
+  white-space: nowrap;
+}
+
+.holds-table .row-actions-holds {
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+}
+
+.holds-table .btn-compact {
+  padding: 0.18rem 0.42rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  border-radius: 8px;
+}
+
+.holds-table td:nth-child(6) {
+  white-space: normal;
+  max-width: 16rem;
 }
 
 .row-actions select {

@@ -98,6 +98,93 @@ const WARNINGS = [
 const PUSH_TEXT = "High-risk reversal scam active in your area. Do not send money to unknown callers.";
 
 let attemptSequence = 0;
+const mockHolds = new Map();
+
+function mockHoldEvaluate(body) {
+  const payer = body.payer || "";
+  const payee = body.payee || "";
+  const amount = Number(body.amount || 0);
+  const paymentsBefore = body.payments_from_payer_before;
+  const newPair =
+    paymentsBefore === 0 || paymentsBefore === "0" || payee === "0245000111";
+  const flagged = payee === "0244123456";
+  let minutes = 0;
+  let risk = "LOW";
+  const reasons = [];
+  if (flagged) {
+    minutes = 1440;
+    risk = "HIGH";
+    reasons.push("flagged_high");
+  } else if (newPair) {
+    minutes = amount > 500 ? 120 : 30;
+    risk = "MEDIUM";
+    reasons.push("new_number_pair");
+    if (amount > 500) reasons.push("amount_above_500_ghs");
+  }
+  const hold = minutes > 0;
+  const releaseAt = hold
+    ? new Date(Date.now() + minutes * 60_000).toISOString().slice(0, 19)
+    : null;
+  if (hold) {
+    mockHolds.set(payee || "0244111222", {
+      release_at: releaseAt,
+      reasons,
+      amount,
+    });
+  }
+  const reason_labels = {
+    en: reasons
+      .map(code => ({
+        new_number_pair: "First payment from this number to you",
+        flagged_high: "Number reported to Walɔ",
+        amount_above_500_ghs: "Large amount (over GHS 500)",
+      })[code])
+      .filter(Boolean)
+      .join("; ") || "Funds temporarily held by Walɔ",
+    tw: reasons
+      .map(code => ({
+        new_number_pair: "Ɛnyɛ daa sika a wɔde aba wo nɔma yi so",
+        flagged_high: "Wɔde nɔma no amanneɛ ama Walɔ",
+        amount_above_500_ghs: "Sika dodow (GHS 500 so)",
+      })[code])
+      .filter(Boolean)
+      .join("; ") || "Walɔ agye sika no daa kakra",
+  };
+  return {
+    ok: true,
+    data: {
+      hold,
+      minutes,
+      risk_level: risk,
+      reason_labels,
+      hold_id: hold ? 1 : null,
+    },
+  };
+}
+
+function mockWithdrawCheck(phone) {
+  const row = mockHolds.get(phone);
+  if (!row) return { ok: true, data: { allow: true } };
+  const codes = row.reasons || [];
+  return {
+    ok: true,
+    data: {
+      allow: false,
+      release_at: row.release_at,
+      reason_labels: {
+        en: codes
+          .map(c => ({
+            new_number_pair: "First payment from this number to you",
+            flagged_high: "Number reported to Walɔ",
+          })[c])
+          .filter(Boolean)
+          .join("; ") || "Funds temporarily held by Walɔ",
+        tw: "Walɔ agye sika no daa kakra",
+      },
+      amount: row.amount,
+    },
+  };
+}
 
 function validNumber(number) {
   return /^0\d{9}$/.test(number || "");
@@ -250,7 +337,16 @@ export function stkPushPayload() {
 }
 
 export function resetDemo() {
+  mockHolds.clear();
   return { ok: true, data: { status: "ok", message: "Demo reset to starting state." } };
+}
+
+export function evaluateHold(body) {
+  return Promise.resolve(mockHoldEvaluate(body));
+}
+
+export function withdrawCheck(phone) {
+  return Promise.resolve(mockWithdrawCheck(phone));
 }
 
 export const QUIZ_CORRECT = QUESTIONS.map(question => question.correct_answer);

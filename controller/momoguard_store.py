@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 REPORT_STATUSES = frozenset(
@@ -118,11 +118,51 @@ CREATE TABLE IF NOT EXISTS training_recommendations (
 CREATE INDEX IF NOT EXISTS idx_reports_number ON reports(phone_number);
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 CREATE INDEX IF NOT EXISTS idx_warnings_status ON warnings(status);
+
+CREATE TABLE IF NOT EXISTS pair_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payer TEXT NOT NULL,
+    payee TEXT NOT NULL,
+    first_seen TEXT NOT NULL,
+    payment_count INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (payer, payee)
+);
+
+CREATE TABLE IF NOT EXISTS holds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payer TEXT NOT NULL,
+    payee TEXT NOT NULL,
+    amount REAL NOT NULL,
+    risk_level TEXT NOT NULL,
+    reasons TEXT NOT NULL DEFAULT '[]',
+    hold_minutes INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    release_at TEXT,
+    status TEXT NOT NULL DEFAULT 'held',
+    rep_id TEXT,
+    sandbox_txn_ref TEXT,
+    sandbox_ticket TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_holds_payee_status ON holds(payee, status);
+CREATE INDEX IF NOT EXISTS idx_holds_status_release ON holds(status, release_at);
+CREATE INDEX IF NOT EXISTS idx_pair_payer_payee ON pair_history(payer, payee);
 """
+
+HOLD_STATUSES = frozenset({"held", "released", "reversed", "extended"})
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+
+
+def _parse_hold_ts(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def normalize_phone(number: str) -> str:
@@ -153,6 +193,8 @@ class MoMoGuardStore:
             "training_recommendations",
             "training_questions",
             "training_scenarios",
+            "holds",
+            "pair_history",
             "warnings",
             "reports",
             "numbers",
@@ -632,6 +674,179 @@ class MoMoGuardStore:
                     _now(),
                 ),
             )
+        self._conn.commit()
+
+    # --- holds ---
+
+    def insert_hold(self, data: dict[str, Any]) -> dict:
+        reasons = data.get("reasons") or []
+        hold_minutes = int(data.get("hold_minutes") or 0)
+        created_at = _now()
+        release_at = (
+            datetime.now(timezone.utc) + timedelta(minutes=hold_minutes)
+        ).replace(tzinfo=None).isoformat(timespec="seconds")
+        cur = self._conn.execute(
+            """
+            INSERT INTO holds (
+                payer, payee, amount, risk_level, reasons, hold_minutes,
+                created_at, release_at, status, sandbox_txn_ref, sandbox_ticket
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'held', ?, ?)
+            """,
+            (
+                normalize_phone(data["payer"]),
+                normalize_phone(data["payee"]),
+                float(data["amount"]),
+                data["risk_level"],
+                json.dumps(reasons),
+                hold_minutes,
+                created_at,
+                release_at,
+                data.get("sandbox_txn_ref"),
+                data.get("sandbox_ticket"),
+            ),
+        )
+        self._conn.commit()
+        return self.get_hold(cur.lastrowid)
+
+    def get_hold(self, hold_id: int) -> dict | None:
+        row = self._conn.execute("SELECT * FROM holds WHERE id=?", (hold_id,)).fetchone()
+        return self._hold_row(row) if row else None
+
+    def list_holds_recent(self, *, hours: int = 24) -> list[dict]:
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=hours)
+        ).replace(tzinfo=None).isoformat(timespec="seconds")
+        rows = self._conn.execute(
+            "SELECT * FROM holds WHERE created_at >= ? ORDER BY created_at DESC",
+            (cutoff,),
+        ).fetchall()
+        return [self._hold_row(r) for r in rows]
+
+    def delete_holds_for_pairs(self, pairs: list[tuple[str, str]]) -> None:
+        for payer, payee in pairs:
+            self._conn.execute(
+                "DELETE FROM holds WHERE payer=? AND payee=?",
+                (normalize_phone(payer), normalize_phone(payee)),
+            )
+        self._conn.commit()
+
+    def replace_demo_holds(self, specs: list[dict[str, Any]]) -> None:
+        pairs = [(s["payer"], s["payee"]) for s in specs]
+        self.delete_holds_for_pairs(pairs)
+        for spec in specs:
+            self.insert_hold(spec)
+
+    def list_holds(self, *, status: str | None = None, payee: str | None = None) -> list[dict]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if status:
+            clauses.append("status=?")
+            params.append(status)
+        if payee:
+            clauses.append("payee=?")
+            params.append(normalize_phone(payee))
+        sql = "SELECT * FROM holds"
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY created_at DESC"
+        rows = self._conn.execute(sql, params).fetchall()
+        return [self._hold_row(r) for r in rows]
+
+    def active_hold_for_payee(self, payee: str) -> dict | None:
+        payee = normalize_phone(payee)
+        row = self._conn.execute(
+            """
+            SELECT * FROM holds
+            WHERE payee=? AND status='held' AND release_at > ?
+            ORDER BY release_at DESC LIMIT 1
+            """,
+            (payee, _now()),
+        ).fetchone()
+        return self._hold_row(row) if row else None
+
+    def update_hold_status(
+        self, hold_id: int, status: str, *, rep_id: str | None = None
+    ) -> dict | None:
+        if status not in HOLD_STATUSES:
+            raise ValueError(f"invalid hold status: {status}")
+        self._conn.execute(
+            "UPDATE holds SET status=?, rep_id=COALESCE(?, rep_id) WHERE id=?",
+            (status, rep_id, hold_id),
+        )
+        self._conn.commit()
+        return self.get_hold(hold_id)
+
+    def extend_hold(self, hold_id: int, extra_minutes: int, *, rep_id: str | None = None) -> dict | None:
+        hold = self.get_hold(hold_id)
+        if not hold or hold["status"] not in ("held", "extended"):
+            return None
+        release = _parse_hold_ts(hold.get("release_at")) or datetime.now(timezone.utc)
+        new_release = (release + timedelta(minutes=extra_minutes)).replace(tzinfo=None).isoformat(
+            timespec="seconds"
+        )
+        new_minutes = int(hold.get("hold_minutes") or 0) + extra_minutes
+        self._conn.execute(
+            """
+            UPDATE holds SET release_at=?, hold_minutes=?, status='extended', rep_id=COALESCE(?, rep_id)
+            WHERE id=?
+            """,
+            (new_release, new_minutes, rep_id, hold_id),
+        )
+        self._conn.commit()
+        return self.get_hold(hold_id)
+
+    def expire_released_holds(self, *, payee: str | None = None) -> None:
+        sql = "UPDATE holds SET status='released' WHERE status IN ('held','extended') AND release_at <= ?"
+        params: list[Any] = [_now()]
+        if payee:
+            sql += " AND payee=?"
+            params.append(normalize_phone(payee))
+        self._conn.execute(sql, params)
+        self._conn.commit()
+
+    def get_pair_history(self, payer: str, payee: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT * FROM pair_history WHERE payer=? AND payee=?",
+            (normalize_phone(payer), normalize_phone(payee)),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def record_pair_payment(self, payer: str, payee: str) -> None:
+        payer = normalize_phone(payer)
+        payee = normalize_phone(payee)
+        now = _now()
+        self._conn.execute(
+            """
+            INSERT INTO pair_history (payer, payee, first_seen, payment_count)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT(payer, payee) DO UPDATE SET payment_count = payment_count + 1
+            """,
+            (payer, payee, now),
+        )
+        self._conn.commit()
+
+    def _hold_row(self, row: sqlite3.Row) -> dict:
+        return {
+            "id": row["id"],
+            "payer": row["payer"],
+            "payee": row["payee"],
+            "amount": row["amount"],
+            "risk_level": row["risk_level"],
+            "reasons": json.loads(row["reasons"] or "[]"),
+            "hold_minutes": row["hold_minutes"],
+            "created_at": row["created_at"],
+            "release_at": row["release_at"],
+            "status": row["status"],
+            "rep_id": row["rep_id"],
+            "sandbox_txn_ref": row["sandbox_txn_ref"],
+            "sandbox_ticket": row["sandbox_ticket"],
+        }
+
+    def update_hold_sandbox_ticket(self, hold_id: int, ticket: str | None) -> None:
+        self._conn.execute(
+            "UPDATE holds SET sandbox_ticket=? WHERE id=?",
+            (ticket, hold_id),
+        )
         self._conn.commit()
 
     def overview_stats(self) -> dict:

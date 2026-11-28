@@ -1,9 +1,17 @@
-import { controllerBase } from "../shared/controllerUrl.js";
+import { resolveControllerUrl } from "../shared/controllerUrl.js";
 
 const TOKEN_KEY = "momoguard_mod_token";
 
+function baseUrl() {
+  if (typeof location !== "undefined") {
+    const override = new URLSearchParams(location.search).get("api");
+    if (override) return override.replace(/\/$/, "");
+  }
+  return resolveControllerUrl().replace(/\/$/, "");
+}
+
 export function apiUrl(path) {
-  const base = controllerBase().replace(/\/$/, "");
+  const base = baseUrl();
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }

@@ -1,9 +1,9 @@
 import { T9 } from "./t9.js";
-import { APPS, STK_MENU, REPORT_TYPES, CONTACTS, CALL_LOG } from "./menuData.js";
+import { APPS, STK_MENU, REPORT_TYPES, CONTACTS, CALL_LOG, SEND_DEMO_PAYERS } from "./menuData.js";
+import { CONFIG } from "./config.js";
 import { INBOX, checkNumber as mockCheckNumber } from "./mock.js";
 import { softKeysFor } from "./softKeys.js";
-import { CONFIG } from "./config.js";
-import { t } from "./i18n/i18n.js";
+import { t, getLocale } from "./i18n/i18n.js";
 
 const MAX_REPORT_TYPES = REPORT_TYPES.length;
 
@@ -45,6 +45,8 @@ export class PhoneFlow {
       queuedPopup: null,
       pending: null,
       notice: "",
+      sendDemo: { pickIndex: 0, amount: "", result: null },
+      withdrawResult: null,
       calc: { entry: "", acc: null, op: null },
     };
   }
@@ -138,6 +140,13 @@ export class PhoneFlow {
       case "stkReportNumber": return this.submitReportNumber();
       case "stkReportType": return this.submitReportType();
       case "stkReportDesc": return this.submitReportDesc();
+      case "stkSendPick":
+        this.t9.setMode("num");
+        this.t9.clear();
+        return this.push("stkSendAmount");
+      case "stkSendAmount": return this.submitSendDemo();
+      case "stkSendDone":
+      case "stkWithdrawResult": return this.set("stkMomo");
       case "stkReportDone": return this.set("stkMomo");
       case "stkWarnings": return this.set("stkMomo");
       case "stkTips": return this.set("stkMomo");
@@ -294,7 +303,15 @@ export class PhoneFlow {
       s.inboxIndex = next;
       return "highlight";
     }
-    if (s.screen === "contacts" || s.screen === "calllog" || s.screen === "settings" || s.screen === "stkMomo" || s.screen === "stkScenarios" || s.screen === "stkReportType") {
+    if (
+      s.screen === "contacts" ||
+      s.screen === "calllog" ||
+      s.screen === "settings" ||
+      s.screen === "stkMomo" ||
+      s.screen === "stkScenarios" ||
+      s.screen === "stkReportType" ||
+      s.screen === "stkSendPick"
+    ) {
       const length = this.listLength();
       const next = Math.min(length - 1, Math.max(0, this.listIndex() + moves[direction]));
       this.setListIndex(next);
@@ -443,6 +460,11 @@ export class PhoneFlow {
         this.t9.clear();
         return this.push("stkReportNumber");
       case "warnings": return this.fetch("warnings");
+      case "sendMoney":
+        this.state.sendDemo = { pickIndex: 0, amount: "", result: null };
+        return this.push("stkSendPick");
+      case "withdraw":
+        return this.fetch("withdraw", { phone: CONFIG.WALLET_MSISDN });
       case "tips": return this.push("stkTips");
       case "help": return this.push("stkHelp");
       case "exit": return this.end();
@@ -505,6 +527,34 @@ export class PhoneFlow {
         this.state.report.status = result.data.status;
         return this.set("stkReportDone");
       }
+      case "sendHold": {
+        if (!result.ok) return this.showError("error.network", "stkSendAmount");
+        this.state.sendDemo.result = result.data;
+        const demo = SEND_DEMO_PAYERS[this.state.sendDemo.pickIndex];
+        const minutes = result.data.minutes || 0;
+        const amount = this.state.sendDemo.amount || "100";
+        const loc = getLocale() === "tw" ? "tw" : "en";
+        const reasonLine = (result.data.reason_labels || {})[loc] || "";
+        const smsKey =
+          demo?.id === "flagged" ? "send.smsHeldFlagged" : "send.smsHeld";
+        this.state.inbox.unshift({
+          from: "Walɔ",
+          text: t(smsKey, {
+            amount,
+            minutes: demo?.id === "flagged" ? 1440 : minutes,
+            reasonLine,
+          }),
+          time: "now",
+          unread: true,
+          tag: "hold",
+        });
+        return this.set("stkSendDone");
+      }
+      case "withdraw": {
+        if (!result.ok) return this.showError("error.network", "stkMomo");
+        this.state.withdrawResult = result.data;
+        return this.set("stkWithdrawResult");
+      }
       default: return "none";
     }
   }
@@ -555,6 +605,34 @@ export class PhoneFlow {
   }
 
   // --------------------------------------------------------------- check --
+
+  submitSendDemo() {
+    const amount = Number(this.inputValue() || "100");
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.state.notice = t("check.enterValue");
+      return "full";
+    }
+    this.state.sendDemo.amount = String(amount);
+    const demo = SEND_DEMO_PAYERS[this.state.sendDemo.pickIndex] || SEND_DEMO_PAYERS[0];
+    const body = {
+      payer: demo.payer,
+      payee: CONFIG.WALLET_MSISDN,
+      amount,
+      payments_from_payer_before: demo.paymentsBefore,
+    };
+    return this.fetch("sendHold", { body });
+  }
+
+  formatReleaseShort(iso) {
+    if (!iso) return "--:--";
+    const dt = new Date(iso.includes("Z") ? iso : `${iso}Z`);
+    if (Number.isNaN(dt.getTime())) return String(iso).slice(11, 16);
+    return new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(dt);
+  }
 
   submitCheck() {
     const number = this.inputValue();
@@ -655,6 +733,7 @@ export class PhoneFlow {
       case "stkMomo": return STK_MENU.length;
       case "stkScenarios": return s.scenarios.length;
       case "stkReportType": return MAX_REPORT_TYPES;
+      case "stkSendPick": return SEND_DEMO_PAYERS.length;
       default: return 0;
     }
   }
@@ -668,6 +747,7 @@ export class PhoneFlow {
       case "stkMomo": return s.stkIndex;
       case "stkScenarios": return s.scenarioIndex;
       case "stkReportType": return s.report.typeIndex;
+      case "stkSendPick": return s.sendDemo.pickIndex;
       default: return 0;
     }
   }
@@ -681,6 +761,7 @@ export class PhoneFlow {
       case "stkMomo": s.stkIndex = index; break;
       case "stkScenarios": s.scenarioIndex = index; break;
       case "stkReportType": s.report.typeIndex = index; break;
+      case "stkSendPick": s.sendDemo.pickIndex = index; break;
       default: break;
     }
   }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import uuid
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import APIRouter, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -14,6 +14,7 @@ from controller.momoguard_store import validate_phone, normalize_phone
 from controller.patterns import find_similar_reports, lookup_result
 from controller.seed import ensure_demo_seed, seed_demo
 from controller.store_factory import create_store
+from controller.holds import HoldsService, handle_sandbox_plugin, register_holds_routes
 from controller.ussd import CommunityUssdRouter
 
 
@@ -51,6 +52,11 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
     ussd = CommunityUssdRouter(lookup_number, submit_report, list_warnings)
     app.state.db = db
     app.state.ussd = ussd
+    holds_svc = HoldsService(db)
+    app.state.holds = holds_svc
+    holds_router = APIRouter()
+    register_holds_routes(holds_router, db)
+    app.include_router(holds_router)
     stk_outbox: list[dict] = []
     stk_seen: dict[str, set[str]] = {}
 
@@ -253,6 +259,14 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
             delivered.add(consumer)
             return {**message, "pending": True}
         return {"pending": False}
+
+    @app.post("/sandbox/plugin")
+    async def sandbox_plugin(body: dict):
+        return handle_sandbox_plugin(
+            body,
+            holds_svc.evaluate,
+            holds_svc.withdraw_check,
+        )
 
     @app.post("/stk/push")
     async def stk_enqueue(body: dict):
