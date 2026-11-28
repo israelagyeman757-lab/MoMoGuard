@@ -3,43 +3,97 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MoMoGuard USSD Simulator</title>
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="description" content="MoMoGuard feature phone">
+  <title>MoMoGuard</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="banner">SIMULATED USSD — not connected to MTN</div>
-  <main class="stage">
-    <div class="phone" aria-label="Feature phone USSD simulator">
-      <div class="screen">
-        <div class="status">MTN · DEMO · <span id="clock">09:41</span></div>
-        <pre id="ussd_text" aria-live="polite"></pre>
+  <div id="demo_toast" class="demo-toast" role="status" aria-live="polite"></div>
+
+  <main class="phone-stage" aria-label="Feature phone">
+    <div class="phone-shadow" aria-hidden="true"></div>
+    <div class="phone" id="phone">
+      <div class="phone-earpiece" aria-hidden="true"></div>
+
+      <div class="screen-bezel">
+        <div class="phone-screen" id="phone_screen">
+          <div class="screen-status" aria-hidden="true">
+            <span class="network"><i></i><i></i><i></i><i></i></span>
+            <span class="status-carrier">MTN</span>
+            <span id="screen_time">09:41</span>
+            <span class="battery"><i></i></span>
+          </div>
+          <div class="screen-content" id="screen_content" aria-live="polite"></div>
+        </div>
       </div>
-      <div class="keys" aria-label="Keypad">
-        <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
-        <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
-        <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
-        <button data-key="*">*</button><button data-key="0">0</button><button data-key="#">#</button>
+
+      <div class="soft-key-row" aria-label="Soft keys">
+        <button type="button" class="key soft-key" data-key="back" id="soft_left" aria-label="Left soft key">
+          <span class="soft-chevron" aria-hidden="true">◀</span>
+          <span id="soft_left_label">—</span>
+        </button>
+        <button type="button" class="key soft-key" data-key="ok" id="soft_right" aria-label="Right soft key">
+          <span id="soft_right_label">Menu</span>
+          <span class="soft-chevron" aria-hidden="true">▶</span>
+        </button>
       </div>
-      <div class="actions">
-        <button id="send_key" type="button">Send input</button>
-        <button id="start_session" type="button">Start USSD</button>
-        <button id="end_session" type="button">End (5)</button>
+
+      <div class="phone-controls">
+        <div class="action-keys">
+          <button class="key utility-key call-key" id="key_call" data-key="call" aria-label="Call"><span class="util-glyph call-glyph" aria-hidden="true"></span></button>
+          <button class="key utility-key end-key" id="key_end" data-key="end" aria-label="End"><span class="util-glyph end-glyph" aria-hidden="true"></span></button>
+          <button class="key utility-key" id="key_clear" data-key="clear" aria-label="Clear"><span class="util-glyph clear-glyph" aria-hidden="true"></span></button>
+          <button class="key utility-key" id="key_back" data-key="back" aria-label="Back"><span class="util-glyph back-glyph" aria-hidden="true"></span></button>
+        </div>
+
+        <div class="navigation" aria-label="Navigation">
+          <button class="key nav-key nav-up" id="key_up" data-key="up" aria-label="Up">▲</button>
+          <button class="key nav-key nav-left" id="key_left" data-key="left" aria-label="Left">◀</button>
+          <button class="key ok-key" id="key_ok" data-key="ok" aria-label="OK"><span>OK</span></button>
+          <button class="key nav-key nav-right" id="key_right" data-key="right" aria-label="Right">▶</button>
+          <button class="key nav-key nav-down" id="key_down" data-key="down" aria-label="Down">▼</button>
+        </div>
       </div>
-      <input id="entry" type="text" inputmode="tel" placeholder="Type choice or number, then Send" />
+
+      <div class="keypad" aria-label="Keypad">
+        <button class="key number-key" id="key_1" data-key="1"><strong>1</strong><small>&nbsp;</small></button>
+        <button class="key number-key" id="key_2" data-key="2"><strong>2</strong><small>abc</small></button>
+        <button class="key number-key" id="key_3" data-key="3"><strong>3</strong><small>def</small></button>
+        <button class="key number-key" id="key_4" data-key="4"><strong>4</strong><small>ghi</small></button>
+        <button class="key number-key" id="key_5" data-key="5"><strong>5</strong><small>jkl</small></button>
+        <button class="key number-key" id="key_6" data-key="6"><strong>6</strong><small>mno</small></button>
+        <button class="key number-key" id="key_7" data-key="7"><strong>7</strong><small>pqrs</small></button>
+        <button class="key number-key" id="key_8" data-key="8"><strong>8</strong><small>tuv</small></button>
+        <button class="key number-key" id="key_9" data-key="9"><strong>9</strong><small>wxyz</small></button>
+        <button class="key number-key" id="key_star" data-key="*"><strong>*</strong><small>&nbsp;</small></button>
+        <button class="key number-key" id="key_0" data-key="0"><strong>0</strong><small>+</small></button>
+        <button class="key number-key" id="key_hash" data-key="#"><strong>#</strong><small>&nbsp;</small></button>
+      </div>
     </div>
-    <aside class="help">
-      <h1>Community USSD menu</h1>
-      <ol>
-        <li>Check suspicious number</li>
-        <li>Learn about scams</li>
-        <li>Report suspicious activity</li>
-        <li>Latest scam warnings</li>
-        <li>Exit</li>
-      </ol>
-      <p>Try demo number <strong>0244123456</strong> after seeding reports in the moderator dashboard.</p>
-      <p><a href="../training-app/">Open smartphone training</a> · <a href="../community-console/">Moderator dashboard</a></p>
-    </aside>
+
+    <details class="keyboard-legend">
+      <summary>Keyboard</summary>
+      <dl class="keyboard-legend-list">
+        <div><dt>0–9, *, #</dt><dd>Keypad</dd></div>
+        <div><dt>Arrows</dt><dd>D-pad</dd></div>
+        <div><dt>Enter</dt><dd>OK</dd></div>
+        <div><dt>F1 / [</dt><dd>Left soft key</dd></div>
+        <div><dt>F2 / ]</dt><dd>Right soft key</dd></div>
+        <div><dt>Backspace</dt><dd>Clear</dd></div>
+        <div><dt>Esc</dt><dd>Back</dd></div>
+        <div><dt>F3 / Home</dt><dd>Call / send</dd></div>
+        <div><dt>F4 / End</dt><dd>End / home</dd></div>
+      </dl>
+    </details>
   </main>
+
+  <p class="visually-hidden" id="preview_status">Local preview</p>
+  <p class="visually-hidden" id="footer_note">No controller connected</p>
+  <p class="visually-hidden" id="controller_guide" hidden>Controller mode</p>
+  <button id="reset_demo" type="button" class="visually-hidden" hidden>Reset</button>
+  <span id="reset_status" class="visually-hidden" role="status" hidden></span>
+
   <script type="module" src="./app.js"></script>
 </body>
 </html>
