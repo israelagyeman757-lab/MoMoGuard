@@ -5,7 +5,8 @@ import { SmartphoneFlow } from "../smartphoneFlow.js";
 
 test("home has exactly three dock apps", () => {
   assert.equal(DOCK_APPS.length, 3);
-  assert.deepEqual(DOCK_APPS.map(app => app.id), ["phone", "messages", "innovateReps"]);
+  assert.deepEqual(DOCK_APPS.map(app => app.id), ["phone", "messages", "walo"]);
+  assert.equal(DOCK_APPS[2].label, "Walo");
 });
 
 test("openApp and goHome switch the active app", () => {
@@ -23,6 +24,13 @@ test("invalid app ids are rejected", () => {
   const shell = new SmartphoneShell();
   assert.equal(shell.openApp("calculator"), false);
   assert.equal(shell.isHome(), true);
+});
+
+test("mock inbox ships with full help-desk messages", () => {
+  const flow = new SmartphoneFlow();
+  assert.ok(flow.messages.length >= 4);
+  assert.match(flow.messages[0].text, /PIN/i);
+  assert.equal(flow.messages[0].preview, flow.messages[0].text);
 });
 
 test("messages app stores simulated SMS without scanning metadata", () => {

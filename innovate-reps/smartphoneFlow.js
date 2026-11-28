@@ -1,10 +1,16 @@
+import { MOCK_HELP_MESSAGES } from "./mockMessages.js";
+
 /** Phone + Messages state inside the Innovate Reps smartphone (no SMS fraud scanning). */
 
 export class SmartphoneFlow {
   constructor({ sender = "0240000099" } = {}) {
     this.sender = sender;
     this.sessionId = `rep-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    this.messages = [];
+    this.messages = MOCK_HELP_MESSAGES.map(item => ({
+      ...item,
+      preview: item.text,
+      source: "mock",
+    }));
     this.recents = [];
     this.phoneTab = "dialer";
     this.dialEntry = "";

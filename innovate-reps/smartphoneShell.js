@@ -3,7 +3,7 @@
 export const DOCK_APPS = [
   { id: "phone", label: "Phone", icon: "phone" },
   { id: "messages", label: "Messages", icon: "messages" },
-  { id: "innovateReps", label: "Innovate Reps", icon: "reps" },
+  { id: "walo", label: "Walo", icon: "walo" },
 ];
 
 export class SmartphoneShell {
