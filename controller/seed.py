@@ -37,6 +37,7 @@ def seed_demo(store: Any, *, reset: bool = True) -> None:
     if reset:
         store.reset()
     store.upsert_user("mod-001", "Demo Moderator", "moderator")
+    store.upsert_user("rep-001", "Ama Rep", "rep")
     store.upsert_user("train-user-1", "Ama", "user")
     store.upsert_user("reporter-1", "Kwesi", "user")
     store.upsert_user("reporter-2", "Efua", "user")

@@ -18,12 +18,13 @@ def test_static_apps_use_absolute_asset_paths():
         assert "./styles.css" not in html, f"{folder} must not use relative ./styles.css"
 
 
-def test_vercel_trailing_slash_config():
+def test_vercel_no_trailing_slash():
     import json
 
     config = json.loads((REPO / "vercel.json").read_text(encoding="utf-8"))
-    assert config.get("trailingSlash") is True
-    redirects = {r["source"] for r in config.get("redirects", [])}
-    assert "/phone-page" in redirects
-    assert "/community-console" in redirects
-    assert "/training-app" in redirects
+    assert "trailingSlash" not in config
+    sources = {r["source"] for r in config.get("rewrites", [])}
+    assert "/training-app" in sources
+    assert "/phone-page" in sources
+    redirect_sources = {r["source"] for r in config.get("redirects", [])}
+    assert "/rep-app" in redirect_sources

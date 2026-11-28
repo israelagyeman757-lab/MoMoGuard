@@ -9,7 +9,7 @@ from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from controller.auth import require_moderator
+from controller.auth import require_moderator, require_rep, verify_token
 from controller.momoguard_store import validate_phone, normalize_phone
 from controller.patterns import find_similar_reports, lookup_result
 from controller.seed import ensure_demo_seed, seed_demo
@@ -57,6 +57,12 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
     def _mod_auth(authorization: str | None, allow_viewer: bool = False):
         try:
             return require_moderator(authorization, allow_viewer=allow_viewer)
+        except PermissionError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    def _rep_auth(authorization: str | None):
+        try:
+            return require_rep(authorization)
         except PermissionError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
 
@@ -180,7 +186,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
         return {"questions": db.list_questions(assessment_tag=tag)}
 
     @app.post("/training/attempts")
-    async def training_attempt(body: dict):
+    async def training_attempt(body: dict, authorization: str | None = Header(default=None)):
         user_id = body.get("user_id")
         assessment_type = body.get("assessment_type", "practice")
         answers = body.get("answers", [])
@@ -200,7 +206,13 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
                     "is_correct": selected == q["correct_answer"],
                 }
             )
-        result = db.save_quiz_attempt(user_id, assessment_type, responses)
+        facilitated_by = body.get("facilitated_by_rep")
+        actor = verify_token(authorization)
+        if actor and actor["role"] == "rep":
+            facilitated_by = actor["user_id"]
+        result = db.save_quiz_attempt(
+            user_id, assessment_type, responses, facilitated_by_rep=facilitated_by
+        )
         return result
 
     @app.get("/training/results/{user_id}")
@@ -220,10 +232,16 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
     @app.post("/auth/demo-login")
     async def demo_login(body: dict):
         role = body.get("role", "moderator")
-        token = os.environ.get("MODERATOR_DEMO_TOKEN", "demo-mod-token") if role == "moderator" else os.environ.get("VIEWER_DEMO_TOKEN", "demo-view-token")
+        if role == "moderator":
+            token = os.environ.get("MODERATOR_DEMO_TOKEN", "demo-mod-token")
+        elif role == "rep":
+            token = os.environ.get("REP_DEMO_TOKEN", "demo-rep-token")
+        else:
+            token = os.environ.get("VIEWER_DEMO_TOKEN", "demo-view-token")
         return {
             "token": token,
             "role": role,
+            "user_id": {"moderator": "mod-001", "rep": "rep-001", "viewer": "mod-viewer"}.get(role),
             "message": "Demo token only — not for production.",
         }
 
@@ -255,7 +273,8 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
         return {"pending": False}
 
     @app.post("/stk/push")
-    async def stk_enqueue(body: dict):
+    async def stk_enqueue(body: dict, authorization: str | None = Header(default=None)):
+        _mod_auth(authorization)
         message = {
             "id": uuid.uuid4().hex[:12],
             "text": body.get("text", "MoMoGuard alert"),
@@ -264,6 +283,116 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
         }
         stk_outbox.append(message)
         return message
+
+    @app.post("/rep/assisted-reports")
+    async def rep_assisted_report(body: dict, authorization: str | None = Header(default=None)):
+        rep = _rep_auth(authorization)
+        for field in ("scam_type",):
+            if field not in body:
+                raise HTTPException(status_code=422, detail=f"missing {field}")
+        phone = body.get("phone_number", "")
+        if phone and not validate_phone(phone):
+            raise HTTPException(status_code=422, detail="invalid phone_number format")
+        anon_id = f"community-member-{uuid.uuid4().hex[:10]}"
+        prefix = "[Assisted by community rep] "
+        description = body.get("description", "")
+        if not description.startswith(prefix):
+            description = prefix + description
+        report = db.insert_report(
+            {
+                "reporter_id": anon_id,
+                "phone_number": phone,
+                "scam_type": body["scam_type"],
+                "description": description,
+                "loss_reported": body.get("loss_reported"),
+                "tags": ["assisted-by-rep"],
+                "facilitated_by_rep": rep["user_id"],
+            }
+        )
+        return {
+            **report,
+            "reporter_id": "[hidden]",
+            "member_anonymous": True,
+            "tags": report.get("tags", ["assisted-by-rep"]),
+        }
+
+    @app.get("/rep/dashboard")
+    async def rep_dashboard(authorization: str | None = Header(default=None)):
+        rep = _rep_auth(authorization)
+        return db.rep_dashboard_stats(rep["user_id"])
+
+    @app.post("/rep/warnings/{warning_id}/share")
+    async def rep_share_warning(
+        warning_id: int,
+        authorization: str | None = Header(default=None),
+    ):
+        rep = _rep_auth(authorization)
+        warning = next((w for w in db.list_warnings() if w["id"] == warning_id), None)
+        if not warning:
+            raise HTTPException(status_code=404, detail="warning not found")
+        db.record_rep_event(
+            rep["user_id"],
+            "warning_share",
+            {"warning_id": warning_id, "title": warning.get("title")},
+        )
+        share_text = f"{warning.get('title', 'MoMoGuard warning')}: {warning.get('description', '')}"
+        return {
+            "share_text": share_text.strip(),
+            "warning_id": warning_id,
+            "qr_payload": share_text.strip(),
+        }
+
+    @app.post("/rep/stk-tips")
+    async def rep_stk_tip(body: dict, authorization: str | None = Header(default=None)):
+        rep = _rep_auth(authorization)
+        text = (body.get("text") or "").strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="missing text")
+        tip = db.insert_stk_tip_request(
+            rep["user_id"],
+            text,
+            more=bool(body.get("more")),
+            report=bool(body.get("report")),
+        )
+        return {**tip, "message": "Queued for moderator approval before STK delivery."}
+
+    @app.get("/moderator/stk-tips")
+    async def moderator_stk_tips(
+        authorization: str | None = Header(default=None),
+        status: str = Query(default="pending"),
+    ):
+        _mod_auth(authorization, allow_viewer=True)
+        items = db.list_stk_tip_requests(status=status if status != "all" else None)
+        return {"tips": items}
+
+    @app.post("/moderator/stk-tips/{tip_id}/approve")
+    async def approve_stk_tip(tip_id: int, authorization: str | None = Header(default=None)):
+        _mod_auth(authorization)
+        tip = db.get_stk_tip_request(tip_id)
+        if not tip:
+            raise HTTPException(status_code=404, detail="not found")
+        if tip["status"] != "pending":
+            raise HTTPException(status_code=409, detail="already reviewed")
+        db.update_stk_tip_request(tip_id, "approved")
+        message = {
+            "id": uuid.uuid4().hex[:12],
+            "text": tip["text"],
+            "more": tip["more"],
+            "report": tip["report"],
+        }
+        stk_outbox.append(message)
+        return {"status": "approved", "stk_message": message}
+
+    @app.post("/moderator/stk-tips/{tip_id}/reject")
+    async def reject_stk_tip(tip_id: int, authorization: str | None = Header(default=None)):
+        _mod_auth(authorization)
+        tip = db.get_stk_tip_request(tip_id)
+        if not tip:
+            raise HTTPException(status_code=404, detail="not found")
+        if tip["status"] != "pending":
+            raise HTTPException(status_code=409, detail="already reviewed")
+        db.update_stk_tip_request(tip_id, "rejected")
+        return {"status": "rejected"}
 
     return app
 

@@ -47,8 +47,8 @@ function renderStatCards(overview) {
   const warnings = overview.warnings_by_status || {};
   const cards = [
     { label: "Reports (all)", value: Object.values(reports).reduce((a, b) => a + b, 0) },
-    { label: "Under review", value: reports.UNDER_REVIEW || 0 },
-    { label: "Corroborated", value: reports.CORROBORATED || 0 },
+    { label: "Assisted by rep", value: overview.assisted_reports ?? 0 },
+    { label: "Rep STK tips pending", value: overview.stk_tips_pending ?? 0 },
     { label: "Published warnings", value: warnings.published || 0 },
   ];
   document.getElementById("stat_cards").innerHTML = cards.map((c, i) => `
@@ -88,7 +88,7 @@ function renderReports(reports) {
       <td>${r.phone_number || "—"}</td>
       <td>${(r.scam_type || "").replace(/_/g, " ")}</td>
       <td>${statusChip(r.status)}</td>
-      <td>${(r.description || "").slice(0, 120)}${(r.description || "").length > 120 ? "…" : ""}</td>
+      <td>${(r.tags || []).includes("assisted-by-rep") ? '<span class="chip">assisted</span> ' : ""}${(r.description || "").slice(0, 120)}${(r.description || "").length > 120 ? "…" : ""}</td>
       <td>
         <div class="row-actions">
           <select aria-label="New status for report ${r.id}" data-id="${r.id}">
@@ -309,6 +309,67 @@ document.getElementById("create_warning").addEventListener("click", async () => 
   }
 });
 
+function renderRepStkTips(tips) {
+  const list = document.getElementById("rep_stk_list");
+  const empty = document.getElementById("rep_stk_empty");
+  const pending = tips.filter((t) => t.status === "pending");
+  if (!pending.length) {
+    list.innerHTML = "";
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  list.innerHTML = pending.map((t) => `
+    <div class="warning-card" data-id="${t.id}">
+      <div>
+        <strong>Rep ${t.rep_id}</strong>
+        <p class="fine-print">${t.text}</p>
+        <span class="chip chip-UNVERIFIED">pending</span>
+      </div>
+      <div class="row-actions">
+        <button type="button" class="btn primary approve-rep-stk" data-id="${t.id}">Approve &amp; push</button>
+        <button type="button" class="btn ghost reject-rep-stk" data-id="${t.id}">Reject</button>
+      </div>
+    </div>`).join("");
+
+  list.querySelectorAll(".approve-rep-stk").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await api(`/moderator/stk-tips/${btn.dataset.id}/approve`, { method: "POST" });
+        showToast("STK tip approved — phone will poll it");
+        await loadRepStkTips();
+        await loadOverview();
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+  list.querySelectorAll(".reject-rep-stk").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await api(`/moderator/stk-tips/${btn.dataset.id}/reject`, { method: "POST" });
+        showToast("Tip rejected");
+        await loadRepStkTips();
+        await loadOverview();
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+  });
+}
+
+async function loadRepStkTips() {
+  const data = await api("/moderator/stk-tips?status=pending");
+  renderRepStkTips(data.tips || []);
+}
+
+document.getElementById("load_rep_stk").addEventListener("click", () => {
+  loadRepStkTips().catch((e) => showToast(e.message, "error"));
+});
+
 document.getElementById("stk_push_btn").addEventListener("click", async () => {
   const text = document.getElementById("stk_text").value.trim();
   try {
@@ -331,5 +392,6 @@ ensureDemoLogin(true).then(ok => {
     loadOverview();
     loadReports();
     loadWarnings();
+    loadRepStkTips();
   }
 });

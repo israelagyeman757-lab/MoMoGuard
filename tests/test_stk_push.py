@@ -1,6 +1,10 @@
+MOD = {"Authorization": "Bearer demo-mod-token"}
+
+
 def test_stk_push_enqueue_and_poll(client):
     enqueued = client.post(
         "/stk/push",
+        headers=MOD,
         json={
             "text": "Watch for fake reversal calls today.",
             "more": True,
@@ -24,7 +28,7 @@ def test_stk_push_enqueue_and_poll(client):
 
 
 def test_stk_push_cleared_on_reset(client):
-    client.post("/stk/push", json={"text": "temp"})
+    client.post("/stk/push", headers=MOD, json={"text": "temp"})
     assert client.get("/stk/push").json()["pending"] is True
     client.post("/reset-demo")
     assert client.get("/stk/push").json()["pending"] is False

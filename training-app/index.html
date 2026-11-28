@@ -2,35 +2,119 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MoMoGuard Training</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#D32F2F">
+  <title>MoMoGuard Rep</title>
   <link rel="stylesheet" href="/training-app/styles.css">
 </head>
 <body>
-  <header>
-    <h1>Learn to spot MoMo scams</h1>
-    <p>Large text, simple steps. We never ask for your PIN or OTP.</p>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"/></svg>
+      <span>MoMoGuard <span class="brand-dot">Rep</span></span>
+    </div>
+    <p class="header-tag">Educator · not an investigator</p>
   </header>
-  <main>
-    <section class="card">
-      <label>Your name <input id="user_name" value="Ama" /></label>
-      <button id="start_pre" type="button">Start pre-test (10 questions)</button>
-      <button id="start_post" type="button">Start post-test</button>
-      <button id="view_history" type="button">View my scores</button>
+
+  <section class="auth-card card" id="auth_card">
+    <h1>Community rep sign-in</h1>
+    <p class="lede">Help people report scams and learn safely. We never collect PINs or OTPs.</p>
+    <button type="button" id="login_rep" class="btn primary">Demo rep sign-in</button>
+    <p id="auth_status" class="fine-print">Not signed in</p>
+  </section>
+
+  <nav class="rep-nav" id="rep_nav" hidden aria-label="Rep tasks">
+    <button type="button" class="nav-btn is-active" data-panel="dashboard">Dashboard</button>
+    <button type="button" class="nav-btn" data-panel="assisted">Assist report</button>
+    <button type="button" class="nav-btn" data-panel="lookup">Number check</button>
+    <button type="button" class="nav-btn" data-panel="training">Training</button>
+    <button type="button" class="nav-btn" data-panel="warnings">Warnings</button>
+  </nav>
+
+  <main id="rep_main" hidden>
+    <section class="panel is-active card" data-panel="dashboard" id="panel_dashboard">
+      <h2>Your impact</h2>
+      <div class="stat-grid" id="dash_stats"></div>
+      <p class="fine-print">Reps facilitate reports and learning — they do not investigate losses or move money.</p>
+      <button type="button" id="refresh_dash" class="btn ghost">Refresh</button>
     </section>
-    <section class="card" id="quiz_card" hidden>
-      <p id="progress"></p>
-      <h2 id="question_text"></h2>
-      <div id="options"></div>
-      <p id="feedback" class="feedback"></p>
-      <button id="next_q" type="button" hidden>Next</button>
+
+    <section class="panel card" data-panel="assisted" id="panel_assisted" hidden>
+      <h2>File a report for someone</h2>
+      <p class="lede">The community member stays anonymous to moderators.</p>
+      <label class="field"><span>Phone number (if known)</span>
+        <input id="assist_phone" type="tel" inputmode="numeric" placeholder="0244123456" autocomplete="off"></label>
+      <label class="field"><span>Scam type</span>
+        <select id="assist_type">
+          <option value="fake_mtn_rep">Fake MTN rep</option>
+          <option value="pin_otp_request">PIN / OTP request</option>
+          <option value="fake_payment_confirmation">Fake payment confirmation</option>
+          <option value="reversal_scam">Reversal scam</option>
+          <option value="suspicious_call_message">Suspicious call or message</option>
+          <option value="job_offer">Fake job offer</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label class="field"><span>What happened?</span>
+        <textarea id="assist_desc" rows="4" placeholder="Use their words — no PINs or codes"></textarea></label>
+      <label class="check-row"><input type="checkbox" id="assist_loss"> <span>They lost money</span></label>
+      <button type="button" id="assist_submit" class="btn primary">Submit assisted report</button>
     </section>
-    <section class="card">
-      <h2>Recommended for you</h2>
-      <ul id="recommendations"></ul>
+
+    <section class="panel card" data-panel="lookup" id="panel_lookup" hidden>
+      <h2>Check a number for someone</h2>
+      <label class="field"><span>Phone number</span>
+        <input id="lookup_phone" type="tel" inputmode="numeric" placeholder="0244123456"></label>
+      <button type="button" id="lookup_btn" class="btn primary">Check in MoMoGuard</button>
+      <div id="lookup_result" class="lookup-card" hidden>
+        <span id="lookup_badge" class="risk-badge">—</span>
+        <p id="lookup_msg" class="lookup-copy"></p>
+        <p id="lookup_disc" class="fine-print"></p>
+      </div>
     </section>
-    <pre id="history"></pre>
+
+    <section class="panel card" data-panel="training" id="panel_training" hidden>
+      <h2>Training session</h2>
+      <p class="lede">Nickname only — no full names or ID numbers.</p>
+      <label class="field"><span>Learner nickname</span>
+        <input id="train_nick" type="text" placeholder="e.g. Kofi" autocomplete="off"></label>
+      <div class="train-actions">
+        <button type="button" id="start_pre" class="btn primary">Pre-test (10)</button>
+        <button type="button" id="start_post" class="btn secondary">Post-test</button>
+        <button type="button" id="view_progress" class="btn ghost">Progress</button>
+      </div>
+      <div id="quiz_card" hidden>
+        <p id="quiz_progress" class="fine-print"></p>
+        <h3 id="quiz_question"></h3>
+        <div id="quiz_options" class="option-list"></div>
+        <p id="quiz_feedback" class="feedback"></p>
+        <button type="button" id="quiz_next" class="btn primary" hidden>Next</button>
+      </div>
+      <ul id="recommendations" class="rec-list"></ul>
+      <pre id="train_history" class="history" hidden></pre>
+    </section>
+
+    <section class="panel card" data-panel="warnings" id="panel_warnings" hidden>
+      <h2>Published warnings</h2>
+      <div id="warnings_list" class="warning-list"></div>
+    </section>
   </main>
+
+  <dialog id="share_dialog" class="share-dialog">
+    <form method="dialog">
+      <h3>Share warning</h3>
+      <p id="share_text" class="share-copy"></p>
+      <canvas id="share_qr" width="180" height="180" aria-label="QR code for warning text"></canvas>
+      <div class="dialog-actions">
+        <button type="button" id="share_copy" class="btn primary">Copy text</button>
+        <button type="button" id="share_sheet" class="btn secondary">Share…</button>
+        <button type="submit" class="btn ghost">Close</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module" src="/training-app/app.js"></script>
 </body>
 </html>

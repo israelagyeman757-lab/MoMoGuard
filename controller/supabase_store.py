@@ -645,5 +645,37 @@ class SupabaseStore:
             "reports_by_status": reports_by_status,
             "warnings_by_status": warnings_by_status,
             "top_tactics": [{"scam_type": t, "count": n} for t, n in top_tactics],
+            "assisted_reports": 0,
+            "stk_tips_pending": 0,
             "training": self.training_stats(),
+        }
+
+    def count_assisted_reports(self) -> int:
+        return 0
+
+    def insert_stk_tip_request(
+        self, rep_id: str, text: str, *, more: bool = False, report: bool = False
+    ) -> dict:
+        raise NotImplementedError("Rep STK queue requires sqlite demo or Supabase migration")
+
+    def get_stk_tip_request(self, request_id: int) -> dict | None:
+        return None
+
+    def list_stk_tip_requests(self, *, status: str | None = "pending") -> list[dict]:
+        return []
+
+    def update_stk_tip_request(self, request_id: int, status: str) -> dict | None:
+        return None
+
+    def record_rep_event(self, rep_id: str, event_type: str, payload: dict | None = None) -> dict:
+        return {"rep_id": rep_id, "event_type": event_type, "payload": payload or {}}
+
+    def rep_dashboard_stats(self, rep_id: str) -> dict:
+        return {
+            "rep_id": rep_id,
+            "reports_assisted": 0,
+            "people_trained": 0,
+            "warnings_shared": 0,
+            "avg_improvement_pp": None,
+            "stk_tips_pending": 0,
         }

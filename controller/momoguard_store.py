@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS reports (
     description TEXT NOT NULL DEFAULT '',
     loss_reported INTEGER,
     status TEXT NOT NULL DEFAULT 'UNVERIFIED',
+    tags TEXT NOT NULL DEFAULT '[]',
+    facilitated_by_rep TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -96,7 +98,27 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     assessment_type TEXT NOT NULL,
     score REAL NOT NULL DEFAULT 0,
     total_questions INTEGER NOT NULL DEFAULT 0,
+    facilitated_by_rep TEXT,
     completed_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS stk_tip_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rep_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    more INTEGER NOT NULL DEFAULT 0,
+    report INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS rep_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rep_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS quiz_responses (
@@ -145,11 +167,31 @@ class MoMoGuardStore:
         self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        report_cols = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(reports)").fetchall()
+        }
+        if "tags" not in report_cols:
+            self._conn.execute(
+                "ALTER TABLE reports ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"
+            )
+        if "facilitated_by_rep" not in report_cols:
+            self._conn.execute("ALTER TABLE reports ADD COLUMN facilitated_by_rep TEXT")
+        attempt_cols = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(quiz_attempts)").fetchall()
+        }
+        if "facilitated_by_rep" not in attempt_cols:
+            self._conn.execute("ALTER TABLE quiz_attempts ADD COLUMN facilitated_by_rep TEXT")
+        self._conn.commit()
 
     def reset(self) -> None:
         for table in (
             "quiz_responses",
             "quiz_attempts",
+            "rep_events",
+            "stk_tip_requests",
             "training_recommendations",
             "training_questions",
             "training_scenarios",
@@ -201,13 +243,16 @@ class MoMoGuardStore:
         if scam_type not in SCAM_TYPES:
             raise ValueError(f"invalid scam_type: {scam_type}")
         reporter_id = data["reporter_id"]
+        tags = data.get("tags") or []
+        if isinstance(tags, str):
+            tags = json.loads(tags) if tags else []
         created_at = _now()
         cur = self._conn.execute(
             """
             INSERT INTO reports (
                 reporter_id, phone_number, scam_type, description,
-                loss_reported, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, 'UNVERIFIED', ?)
+                loss_reported, status, tags, facilitated_by_rep, created_at
+            ) VALUES (?, ?, ?, ?, ?, 'UNVERIFIED', ?, ?, ?)
             """,
             (
                 reporter_id,
@@ -215,6 +260,8 @@ class MoMoGuardStore:
                 scam_type,
                 data.get("description", ""),
                 None if data.get("loss_reported") is None else (1 if data["loss_reported"] else 0),
+                json.dumps(tags),
+                data.get("facilitated_by_rep"),
                 created_at,
             ),
         )
@@ -269,6 +316,11 @@ class MoMoGuardStore:
 
     def _report_row(self, row: sqlite3.Row) -> dict:
         loss = row["loss_reported"]
+        raw_tags = row["tags"] if "tags" in row.keys() else "[]"
+        try:
+            tags = json.loads(raw_tags) if raw_tags else []
+        except json.JSONDecodeError:
+            tags = []
         return {
             "id": row["id"],
             "reporter_id": row["reporter_id"],
@@ -277,8 +329,25 @@ class MoMoGuardStore:
             "description": row["description"],
             "loss_reported": None if loss is None else bool(loss),
             "status": row["status"],
+            "tags": tags,
+            "facilitated_by_rep": row["facilitated_by_rep"] if "facilitated_by_rep" in row.keys() else None,
             "created_at": row["created_at"],
         }
+
+    def count_assisted_reports(self) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) AS n FROM reports WHERE tags LIKE '%assisted-by-rep%'"
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def list_reports_for_moderator(
+        self,
+        *,
+        status: str | None = None,
+        phone_number: str | None = None,
+        scam_type: str | None = None,
+    ) -> list[dict]:
+        return self.list_reports(status=status, phone_number=phone_number, scam_type=scam_type)
 
     def _touch_number(self, phone: str) -> None:
         self._conn.execute(
@@ -493,6 +562,8 @@ class MoMoGuardStore:
         user_id: str,
         assessment_type: str,
         responses: list[dict[str, Any]],
+        *,
+        facilitated_by_rep: str | None = None,
     ) -> dict:
         total = len(responses)
         correct = sum(1 for r in responses if r["is_correct"])
@@ -500,10 +571,11 @@ class MoMoGuardStore:
         completed_at = _now()
         cur = self._conn.execute(
             """
-            INSERT INTO quiz_attempts (user_id, assessment_type, score, total_questions, completed_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO quiz_attempts (
+                user_id, assessment_type, score, total_questions, facilitated_by_rep, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (user_id, assessment_type, score, total, completed_at),
+            (user_id, assessment_type, score, total, facilitated_by_rep, completed_at),
         )
         attempt_id = cur.lastrowid
         for r in responses:
@@ -634,6 +706,132 @@ class MoMoGuardStore:
             )
         self._conn.commit()
 
+    def insert_stk_tip_request(
+        self, rep_id: str, text: str, *, more: bool = False, report: bool = False
+    ) -> dict:
+        created_at = _now()
+        cur = self._conn.execute(
+            """
+            INSERT INTO stk_tip_requests (rep_id, text, more, report, status, created_at)
+            VALUES (?, ?, ?, ?, 'pending', ?)
+            """,
+            (rep_id, text, 1 if more else 0, 1 if report else 0, created_at),
+        )
+        self._conn.commit()
+        return self.get_stk_tip_request(cur.lastrowid)
+
+    def get_stk_tip_request(self, request_id: int) -> dict | None:
+        row = self._conn.execute(
+            "SELECT * FROM stk_tip_requests WHERE id=?", (request_id,)
+        ).fetchone()
+        return self._stk_tip_row(row) if row else None
+
+    def list_stk_tip_requests(self, *, status: str | None = "pending") -> list[dict]:
+        if status:
+            rows = self._conn.execute(
+                "SELECT * FROM stk_tip_requests WHERE status=? ORDER BY created_at DESC",
+                (status,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM stk_tip_requests ORDER BY created_at DESC"
+            ).fetchall()
+        return [self._stk_tip_row(r) for r in rows]
+
+    def update_stk_tip_request(self, request_id: int, status: str) -> dict | None:
+        reviewed_at = _now() if status != "pending" else None
+        self._conn.execute(
+            """
+            UPDATE stk_tip_requests SET status=?, reviewed_at=?
+            WHERE id=?
+            """,
+            (status, reviewed_at, request_id),
+        )
+        self._conn.commit()
+        return self.get_stk_tip_request(request_id)
+
+    def _stk_tip_row(self, row: sqlite3.Row) -> dict:
+        return {
+            "id": row["id"],
+            "rep_id": row["rep_id"],
+            "text": row["text"],
+            "more": bool(row["more"]),
+            "report": bool(row["report"]),
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "reviewed_at": row["reviewed_at"],
+        }
+
+    def record_rep_event(self, rep_id: str, event_type: str, payload: dict | None = None) -> dict:
+        created_at = _now()
+        cur = self._conn.execute(
+            """
+            INSERT INTO rep_events (rep_id, event_type, payload, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (rep_id, event_type, json.dumps(payload or {}), created_at),
+        )
+        self._conn.commit()
+        return {
+            "id": cur.lastrowid,
+            "rep_id": rep_id,
+            "event_type": event_type,
+            "payload": payload or {},
+            "created_at": created_at,
+        }
+
+    def rep_dashboard_stats(self, rep_id: str) -> dict:
+        assisted = self._conn.execute(
+            "SELECT COUNT(*) AS n FROM reports WHERE facilitated_by_rep=?",
+            (rep_id,),
+        ).fetchone()
+        trained = self._conn.execute(
+            """
+            SELECT COUNT(DISTINCT user_id) AS n FROM quiz_attempts
+            WHERE facilitated_by_rep=?
+            """,
+            (rep_id,),
+        ).fetchone()
+        shares = self._conn.execute(
+            """
+            SELECT COUNT(*) AS n FROM rep_events
+            WHERE rep_id=? AND event_type='warning_share'
+            """,
+            (rep_id,),
+        ).fetchone()
+        attempts = self._conn.execute(
+            """
+            SELECT user_id, assessment_type, score FROM quiz_attempts
+            WHERE facilitated_by_rep=?
+            """,
+            (rep_id,),
+        ).fetchall()
+        by_user: dict[str, dict[str, float]] = {}
+        for row in attempts:
+            bucket = by_user.setdefault(row["user_id"], {})
+            bucket[row["assessment_type"]] = float(row["score"])
+        improvements = [
+            post - pre
+            for scores in by_user.values()
+            if (pre := scores.get("pre")) is not None and (post := scores.get("post")) is not None
+        ]
+        avg_improvement = round(sum(improvements) / len(improvements), 1) if improvements else None
+        pending_tips = self._conn.execute(
+            """
+            SELECT COUNT(*) AS n FROM stk_tip_requests
+            WHERE rep_id=? AND status='pending'
+            """,
+            (rep_id,),
+        ).fetchone()
+        return {
+            "rep_id": rep_id,
+            "reports_assisted": int(assisted["n"]) if assisted else 0,
+            "people_trained": int(trained["n"]) if trained else 0,
+            "warnings_shared": int(shares["n"]) if shares else 0,
+            "avg_improvement_pp": avg_improvement,
+            "stk_tips_pending": int(pending_tips["n"]) if pending_tips else 0,
+        }
+
     def overview_stats(self) -> dict:
         reports = self._conn.execute(
             "SELECT status, COUNT(*) AS n FROM reports GROUP BY status"
@@ -652,5 +850,7 @@ class MoMoGuardStore:
             "reports_by_status": {r["status"]: r["n"] for r in reports},
             "warnings_by_status": {r["status"]: r["n"] for r in warnings},
             "top_tactics": [{"scam_type": r["scam_type"], "count": r["n"]} for r in tactics],
+            "assisted_reports": self.count_assisted_reports(),
+            "stk_tips_pending": len(self.list_stk_tip_requests(status="pending")),
             "training": self.training_stats(),
         }

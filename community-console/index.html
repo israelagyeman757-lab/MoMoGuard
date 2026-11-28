@@ -28,6 +28,7 @@
     <button type="button" class="nav-tab" data-section="warnings">Warnings</button>
     <button type="button" class="nav-tab" data-section="training">Training</button>
     <button type="button" class="nav-tab" data-section="stk">STK push</button>
+    <button type="button" class="nav-tab" data-section="rep_stk">Rep STK queue</button>
   </nav>
 
   <main class="site-main">
@@ -102,6 +103,16 @@
       <dl class="training-dl" id="training_stats"></dl>
     </section>
 
+    <section class="section card" id="section_rep_stk" data-section="rep_stk" hidden>
+      <div class="section-head">
+        <h2>Rep STK tip approvals</h2>
+        <button id="load_rep_stk" type="button" class="btn ghost">Refresh</button>
+      </div>
+      <p class="fine-print">Community reps cannot publish STK tips directly — approve here to deliver to the feature phone.</p>
+      <div id="rep_stk_empty" class="empty" hidden>No pending tips.</div>
+      <div id="rep_stk_list" class="warnings-list"></div>
+    </section>
+
     <section class="section card" id="section_stk" data-section="stk" hidden>
       <div class="section-head"><h2>STK proactive alert</h2></div>
       <p class="fine-print">Queues a SIM Toolkit style tip on the feature-phone idle screen (polls <code>GET /stk/push</code>).</p>
@@ -117,7 +128,7 @@
   </main>
 
   <footer class="site-footer">
-    <p>Blueprint demo · <a href="/phone-page/">Open feature phone</a> · <a href="/training-app/">Training app</a></p>
+    <p>Blueprint demo · <a href="/phone-page/">Open feature phone</a> · <a href="/training-app/">MoMoGuard Rep</a></p>
   </footer>
 
   <input type="hidden" id="auth_token" aria-hidden="true" tabindex="-1" />
