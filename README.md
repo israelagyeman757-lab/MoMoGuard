@@ -21,7 +21,7 @@ Open:
 
 - http://127.0.0.1:8000/docs — API
 - Serve static UIs: `python3 -m http.server 5500` from repo root
-  - http://127.0.0.1:5500/phone-page/ — USSD simulator
+  - http://127.0.0.1:5500/phone-page/ — feature-phone SIM Toolkit preview (keyboard legend on page)
   - http://127.0.0.1:5500/training-app/ — smartphone training
   - http://127.0.0.1:5500/community-console/ — moderator dashboard
 
