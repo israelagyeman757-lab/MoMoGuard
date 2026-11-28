@@ -1,5 +1,7 @@
 /** Map laptop keys to feature-phone actions and on-screen highlight selectors. */
 
+import { SELECT_PHONE_KEY } from "./selectAction.js";
+
 const NO_MOD = { ctrlKey: false, metaKey: false, altKey: false };
 
 function starHashId(key) {
@@ -20,7 +22,7 @@ export function mapKeyboardEvent(event) {
   if (ctrlKey || metaKey || altKey) return null;
 
   if (key === "F1" || key === "[") {
-    return { phoneKey: "ok", highlight: "#soft_left" };
+    return { phoneKey: SELECT_PHONE_KEY, highlight: "#soft_left" };
   }
   if (key === "F2" || key === "]") {
     return { phoneKey: "softRight", highlight: "#soft_right" };
@@ -32,7 +34,7 @@ export function mapKeyboardEvent(event) {
     return { phoneKey: "end", highlight: "#key_end" };
   }
   if (key === "Enter") {
-    return { phoneKey: "ok", highlight: "#key_ok" };
+    return { phoneKey: SELECT_PHONE_KEY, highlight: "#soft_left" };
   }
   if (key === "Backspace") {
     return { phoneKey: "clear", highlight: null };
@@ -53,7 +55,7 @@ export function mapKeyboardEvent(event) {
 export const KEYBOARD_LEGEND = [
   { keys: "0–9, *, #", action: "Keypad (T9 uses same timing as taps)" },
   { keys: "Arrows", action: "D-pad" },
-  { keys: "Enter", action: "OK / select" },
+  { keys: "Enter", action: "Select (same as left soft / centre OK)" },
   { keys: "F1 or [", action: "Left soft key (Select)" },
   { keys: "F2 or ]", action: "Right soft key (Menu / Back)" },
   { keys: "Backspace", action: "Clear (C)" },

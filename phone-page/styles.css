@@ -598,8 +598,10 @@ button:focus-visible {
 .hw-soft.is-pressed,
 .pill-key:active,
 .pill-key.is-pressed {
-  transform: translateY(1px);
-  filter: brightness(.97);
+  filter: brightness(.95);
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, .18),
+    0 1px 0 var(--gold-key-edge);
 }
 
 .navigation {
@@ -680,10 +682,37 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.key:active,
-.key.is-pressed {
-  transform: translateY(1px);
-  filter: brightness(.97);
+.ok-key:active,
+.ok-key.is-pressed {
+  transform: translate(-50%, -50%);
+  filter: brightness(.95);
+  background: radial-gradient(circle at 40% 35%, #f5e8b8, #f0c820 68%, #d9a828);
+  box-shadow: inset 0 3px 7px rgba(0, 0, 0, .22);
+}
+
+.nav-up:active,
+.nav-up.is-pressed { transform: translateX(-50%); }
+.nav-down:active,
+.nav-down.is-pressed { transform: translateX(-50%); }
+.nav-left:active,
+.nav-left.is-pressed { transform: translateY(-50%); }
+.nav-right:active,
+.nav-right.is-pressed { transform: translateY(-50%); }
+
+.number-key:active,
+.number-key.is-pressed {
+  filter: brightness(.95);
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, .18),
+    0 1px 0 var(--gold-key-edge);
+}
+
+.action-key:active,
+.action-key.is-pressed {
+  filter: brightness(.95);
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, .18),
+    0 1px 0 var(--gold-key-edge);
 }
 
 /* --- Keypad pills ------------------------------------------------- */

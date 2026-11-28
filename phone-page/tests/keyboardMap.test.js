@@ -22,6 +22,8 @@ test("digit and soft-key map", () => {
   assert.equal(map("*").phoneKey, "*");
   assert.equal(map("#").phoneKey, "#");
   assert.equal(map("F1").phoneKey, "ok");
+  assert.equal(map("Enter").phoneKey, "ok");
+  assert.equal(map("Enter").highlight, "#soft_left");
   assert.equal(map("F2").phoneKey, "softRight");
 });
 

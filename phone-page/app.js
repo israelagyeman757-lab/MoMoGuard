@@ -3,6 +3,7 @@ import { PhoneFlow, APP_ORDER, INPUT_SCREENS, STK_MENU_SCREENS } from "./phoneFl
 import * as controller from "./services/controllerAdapter.js";
 import { softKeyLabels } from "./softKeys.js";
 import { mapKeyboardEvent } from "./keyboardMap.js";
+import { SELECT_PHONE_KEY, isSelectControl } from "./selectAction.js";
 import { CARRIER_MENU, MOMO_MENU, REPORT_TYPES } from "./menuData.js";
 import { iconSim, menuItemIcon } from "./phone-icons.js";
 
@@ -311,6 +312,10 @@ function pauseStkPollIfNeeded() {
   }
 }
 
+function pressSelect(highlightSelector = null) {
+  dispatch(SELECT_PHONE_KEY, highlightSelector);
+}
+
 function dispatch(key, highlightSelector = null) {
   if (highlightSelector) flashHighlight(highlightSelector);
   const prev = flow.state.screen;
@@ -412,7 +417,13 @@ function isTypingElsewhere(event) {
 let longZeroTimer = null;
 for (const button of document.querySelectorAll(".phone [data-key]")) {
   const highlight = button.id ? `#${button.id}` : null;
-  button.addEventListener("click", () => dispatch(button.dataset.key, highlight));
+  button.addEventListener("click", () => {
+    if (isSelectControl(button.id)) {
+      pressSelect(highlight);
+      return;
+    }
+    dispatch(button.dataset.key, highlight);
+  });
   if (button.dataset.key === "0") {
     button.addEventListener("mousedown", () => {
       longZeroTimer = setTimeout(() => {
@@ -432,7 +443,11 @@ function onPhoneKeyDown(event) {
   const mapped = mapKeyboardEvent(event);
   if (!mapped) return;
   event.preventDefault();
-  dispatch(mapped.phoneKey, mapped.highlight);
+  if (mapped.phoneKey === SELECT_PHONE_KEY) {
+    pressSelect(mapped.highlight);
+  } else {
+    dispatch(mapped.phoneKey, mapped.highlight);
+  }
 }
 
 window.addEventListener("keydown", onPhoneKeyDown, true);
