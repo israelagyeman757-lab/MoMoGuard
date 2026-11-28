@@ -2,20 +2,26 @@ import { CONFIG } from "./config.js";
 import { PhoneFlow } from "./phoneFlow.js";
 import * as controller from "./services/controllerAdapter.js";
 import { createDemoBridge } from "./services/demoBridge.js";
+import { loadLocale, t as translate, currentLocale } from "./i18n/i18n.js";
 
 const flow = new PhoneFlow({ mode: CONFIG.MODE });
 const screenContent = document.querySelector("#screen_content");
 const phone = document.querySelector("#phone");
 const timeLabel = document.querySelector("#screen_time");
 let pendingTimer = null;
-let translations = {
-  mainTitle: "Welcome to MoMoGuard",
-  sendMoney: "Send Money",
-  reportScam: "Report a Scam",
-  scamAlerts: "Scam Alerts",
-  checkNumber: "Check a Number",
-  language: "Language",
-};
+let translations = {};
+
+function t(key, fallback = "") {
+  return translate(key, translations[key] || fallback);
+}
+
+export function setPhoneLocale(locale) {
+  flow.state.language = locale === "tw" ? "tw" : "en";
+  return loadLocale(flow.state.language).then(catalog => {
+    translations = { ...catalog };
+    render();
+  });
+}
 
 const voiceQuestions = [
   { question: "Who asked you to send it?", options: ["Called", "Message", "Self"] },
@@ -34,7 +40,10 @@ const APP_META = [
   { id: "camera", label: "Camera", active: false, icon: '<path d="M4 8h4l2-3h4l2 3h4v11H4V8Z"/><circle cx="12" cy="13" r="3.5"/>' },
   { id: "settings", label: "Settings", active: false, icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/>' },
   { id: "tools", label: "Tools", active: false, icon: '<path d="M14 6a4 4 0 0 0-5.5 5.5L3 17l4 4 5.5-5.5A4 4 0 0 0 18 10l-3 3-3-3 3-3Z"/>' },
-  { id: "games", label: "Games", active: false, icon: '<path d="M6 9h12a4 4 0 0 1 4 4v3a3 3 0 0 1-5.2 2L15 16H9l-1.8 2A3 3 0 0 1 2 16v-3a4 4 0 0 1 4-4Z"/><path d="M7 12v3M5.5 13.5h3M16 12h.01M18 14h.01"/>' },
+  // Replaces the old "Games" slot: the only purely-decorative, non-functional
+  // app in this grid with zero thematic tie to a safety/security product, so
+  // it's the lowest-cost one to give up for the new SIM Toolkit app.
+  { id: "simToolkit", label: "SIM Toolkit", active: true, icon: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 6h6M9 10h6M9 14h4"/>' },
 ];
 
 function escapeHtml(value) {
@@ -113,7 +122,6 @@ function screenTemplate() {
           <li><span class="menu-number">1</span>${escapeHtml(translations.sendMoney)}</li>
           <li><span class="menu-number">2</span>${escapeHtml(translations.reportScam)}</li>
           <li><span class="menu-number">3</span>${escapeHtml(translations.scamAlerts)}</li>
-          <li><span class="menu-number">4</span>${escapeHtml(translations.checkNumber)}</li>
           <li><span class="menu-number">5</span>${escapeHtml(translations.language)}</li>
         </ol>`;
     case "recipient":
@@ -185,16 +193,51 @@ function screenTemplate() {
         <li>A caller may ask you to reverse a payment you never received.</li>
         <li>A real worker will not ask for your secret code.</li>
         <li>No reports is not proof a number is safe.</li></ul><div class="screen-source">simulated alerts</div>`;
-    case "checkNumber":
-      return entryScreen("Check a Number", "Phone number", "OK to check. 0240000009 has demo reports.");
-    case "numberResult":
-      return `<h2 class="screen-heading">${state.numberStatus === "reports" ? "Reports found" : state.numberStatus === "unavailable" ? "Could not check" : "No reports"}</h2>
-        <p class="screen-copy">${escapeHtml(state.message)}</p><div class="screen-rule"></div>
-        <p class="screen-small">Back: main menu</p><div class="screen-source">source: simulated</div>`;
+    case "simToolkit":
+      return `<h2 class="screen-heading">${escapeHtml(t("simToolkitTitle"))}</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>${escapeHtml(t("simLearnTitle"))}</li>
+        <li><span class="menu-number">2</span>${escapeHtml(t("simLookupTitle"))}</li>
+        <li><span class="menu-number">3</span>${escapeHtml(t("simReportTitle"))}</li></ol>`;
+    case "simToolkitLearn":
+      return centered("i", t("simLearnTitle"), t("simLearnBody"), "Back: SIM Toolkit menu");
+    case "simToolkitLookup":
+      return entryScreen(t("simLookupTitle"), t("simLookupNumber"), "OK to check with Glance.");
+    case "simToolkitLookupResult": {
+      const headingKey = {
+        flagged: "simLookupHeadingFlagged",
+        watch: "simLookupHeadingWatch",
+        clear: "simLookupHeadingClear",
+        error: "simLookupHeadingError",
+        invalid_number: "simLookupHeadingError",
+        no_results: "simLookupHeadingNone",
+      }[state.reverseLookupStatus] || "simLookupHeadingNone";
+      const heading = t(headingKey);
+      return `<h2 class="screen-heading">${escapeHtml(heading)}</h2>
+        <p class="screen-copy">${escapeHtml(state.reverseLookupMessage)}</p><div class="screen-rule"></div>
+        <p class="screen-small">Back: SIM Toolkit menu</p><div class="screen-source">${escapeHtml(t("simLookupNotProof"))}</div>`;
+    }
+    case "simToolkitReport":
+      return entryScreen(t("simReportTitle"), t("simReportNumber"), t("simReportNumberNote"));
+    case "simToolkitReportType":
+      return `<h2 class="screen-heading">${escapeHtml(t("simReportTypeTitle"))}</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>${escapeHtml(t("simReportType1"))}</li>
+        <li><span class="menu-number">2</span>${escapeHtml(t("simReportType2"))}</li>
+        <li><span class="menu-number">3</span>${escapeHtml(t("simReportType3"))}</li>
+        <li><span class="menu-number">4</span>${escapeHtml(t("simReportType4"))}</li>
+        <li><span class="menu-number">5</span>${escapeHtml(t("simReportType5"))}</li></ol>`;
+    case "simToolkitReportIdentity":
+      return entryScreen(t("simReportIdentityTitle"), t("simReportIdentityLabel"),
+        t("simReportIdentityNote"));
+    case "simToolkitReportLost":
+      return `<h2 class="screen-heading">${escapeHtml(t("simReportLostTitle"))}</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>${escapeHtml(t("simReportLostYes"))}</li>
+        <li><span class="menu-number">2</span>${escapeHtml(t("simReportLostNo"))}</li></ol>`;
+    case "simToolkitReportSent":
+      return centered("✓", "Report sent", state.reportSuspiciousMessage || "Thank you. This number has been noted as suspected.", "End: return to idle");
     case "language":
       return `<h2 class="screen-heading">Language</h2><ol class="screen-menu">
         <li><span class="menu-number">1</span>English</li><li><span class="menu-number">2</span>Twi</li></ol>${noticeHtml()}
-        <p class="screen-small">Twi needs an approved translation.</p>`;
+        <p class="screen-small">${escapeHtml(t("twSecurityReview"))}</p>`;
     case "sms": {
       const current = flow.messages[state.selectedMessage] || {};
       const title = state.messageTag === "transaction" ? "Payment receipt" : "Message";
@@ -245,18 +288,42 @@ function updateTime() {
 
 function queueAdvance(callback, delay) {
   clearTimeout(pendingTimer);
-  pendingTimer = setTimeout(() => {
+  pendingTimer = setTimeout(async () => {
     pendingTimer = null;
-    callback();
+    await callback();
     render();
     scheduleCurrentScreen();
   }, delay);
 }
 
+async function finishReverseLookup() {
+  if (CONFIG.MODE === "controller") {
+    const result = await controller.reverseLookup(flow.state.reverseLookupNumber);
+    if (flow.state.screen !== "loading") return;
+    if (result.ok) flow.applyReverseLookupResult(result.data);
+    else flow.applyReverseLookupError();
+  } else {
+    flow.finishReverseLookup();
+  }
+}
+
+async function finishReportSuspiciousNumber() {
+  if (CONFIG.MODE === "controller") {
+    const payload = flow.buildSuspiciousReportPayload(flow.sender);
+    const result = await controller.reportSuspiciousNumber(payload);
+    if (flow.state.screen !== "loading") return;
+    if (result.ok) flow.applyReportSuspiciousResult(result.data);
+    else flow.applyReportSuspiciousError();
+  } else {
+    flow.finishReportSuspiciousNumber();
+  }
+}
+
 function scheduleCurrentScreen() {
   if (flow.state.screen === "loading") {
-    queueAdvance(() => {
-      if (flow.state.loadingKind === "number") flow.finishNumberCheck();
+    queueAdvance(async () => {
+      if (flow.state.loadingKind === "reverseLookup") await finishReverseLookup();
+      else if (flow.state.loadingKind === "reportSuspicious") await finishReportSuspiciousNumber();
       else flow.finishPayment();
     }, CONFIG.SIMULATED_DELAY_MS);
   } else if (flow.state.screen === "paused") {
@@ -280,6 +347,9 @@ function dispatch(key) {
   pendingTimer = null;
   const previousScreen = flow.state.screen;
   flow.press(key);
+  if (previousScreen === "language" && ["1", "2"].includes(key)) {
+  setPhoneLocale(key === "2" ? "tw" : "en");
+  }
   if (CONFIG.MODE === "controller" && ["end", "back"].includes(key)
       && ["server", "serverLoading", "serverError"].includes(previousScreen)) {
     controller.ussd(flow.sessionId, "end", flow.sender);
@@ -363,9 +433,8 @@ document.addEventListener("keydown", event => {
   dispatch(key);
 });
 
-fetch("./i18n/en.json")
-  .then(response => response.ok ? response.json() : Promise.reject(new Error("Translation unavailable")))
-  .then(data => { translations = { ...translations, ...data }; render(); })
+loadLocale("en")
+  .then(catalog => { translations = { ...catalog }; render(); })
   .catch(() => {});
 
 const resetButton = document.querySelector("#reset_demo");

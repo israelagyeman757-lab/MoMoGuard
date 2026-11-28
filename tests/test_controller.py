@@ -182,6 +182,50 @@ def test_report_dedup_via_api(client):
     assert client.post("/report", json=body).json()["accepted"] is False
 
 
+def test_report_accepts_optional_community_fields_for_innovate_reps(client):
+    body = {"number": STRANGER, "trick": "community_reported", "reporter_id": "rep1",
+            "description": "Asked for my MoMo PIN claiming to be MTN support.",
+            "community": "Madina", "incident_time": "this morning"}
+    r = client.post("/report", json=body).json()
+    assert r["accepted"] is True
+    # Dedup is still keyed by number/reporter/day, regardless of the new fields.
+    again = client.post("/report", json={"number": STRANGER, "trick": "community_reported",
+                                         "reporter_id": "rep1"}).json()
+    assert again["accepted"] is False
+
+
+def test_report_includes_glance_submission_stub_by_default(client):
+    r = client.post("/report", json={
+        "number": STRANGER, "trick": "community_reported", "reporter_id": "c99",
+        "channel": "customer_sim_toolkit", "request_type": "reversal",
+    }).json()
+    assert r["accepted"] is True
+    sub = r["glance_submission"]
+    assert sub["submitted"] is False
+    assert sub["source"] == "rancard_report_stub"
+
+
+def test_community_intelligence_endpoint(client):
+    client.post("/report", json={
+        "number": "0240000888", "trick": "community_reported", "reporter_id": "c1",
+        "channel": "customer_sim_toolkit",
+    })
+    r = client.get("/community/intelligence", params={"number": "0240000888"}).json()
+    assert r["report_state"] == "unverified"
+    assert "not proof" in r["message"].lower()
+
+
+def test_rancard_reverse_lookup_endpoint_flags_known_demo_number(client):
+    r = client.get("/rancard/reverse-lookup", params={"number": "0240000009"}).json()
+    assert r["status"] == "flagged"
+    assert r["source"] == "rancard_stub"
+
+
+def test_rancard_reverse_lookup_endpoint_has_no_results_for_unknown_number(client):
+    r = client.get("/rancard/reverse-lookup", params={"number": "0201112222"}).json()
+    assert r["status"] == "no_results"
+
+
 def test_ussd_main_menu_and_send_flow(client):
     r = client.post("/ussd", json={"session_id": "u1", "key": "", "sender": AUNTY}).json()
     assert "1 Send Money" in r["text"]

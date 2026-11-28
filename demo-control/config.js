@@ -1,0 +1,4 @@
+export const CONFIG = {
+  CONTROLLER_URL: "http://127.0.0.1:8000",
+  CONTROLLER_TIMEOUT_MS: 5000,
+};

@@ -56,7 +56,7 @@ test("ussd posts the session, key and sender to the controller", async t => {
 test("an http error becomes ok false with the status, never data", async t => {
   useControllerMode();
   stubFetch(() => jsonResponse({ detail: "boom" }, 500));
-  const result = await adapter.checkNumber("0240000009");
+  const result = await adapter.metrics();
   assert.equal(result.ok, false);
   assert.equal(result.error, "http_500");
   assert.equal(result.data, undefined);
@@ -87,14 +87,35 @@ test("a slow controller times out and reports timeout, not success", async t => 
   t.after(restore);
 });
 
-test("check-number uses a query parameter and never a body", async t => {
+test("reverseLookup uses a query parameter and never a body", async t => {
   useControllerMode();
-  const calls = stubFetch(() => jsonResponse({ number: "0240000009", reports: 3, risk: "high" }));
-  const result = await adapter.checkNumber("0240000009");
+  const calls = stubFetch(() => jsonResponse({ number: "0240000009", status: "flagged", source: "rancard_stub" }));
+  const result = await adapter.reverseLookup("0240000009");
   assert.equal(result.ok, true);
-  assert.equal(calls[0].url, "http://127.0.0.1:8000/check-number?number=0240000009");
+  assert.equal(calls[0].url, "http://127.0.0.1:8000/rancard/reverse-lookup?number=0240000009");
   assert.equal(calls[0].options.method, undefined);
   assert.equal(calls[0].options.body, undefined);
+  t.after(restore);
+});
+
+test("reportSuspiciousNumber posts the SIM Toolkit payload object", async t => {
+  useControllerMode();
+  const calls = stubFetch(() => jsonResponse({ accepted: true }));
+  await adapter.reportSuspiciousNumber({
+    number: "0240000005",
+    trick: "possible_fake_reversal",
+    reporter_id: "0240000001",
+    request_type: "reversal",
+    channel: "customer_sim_toolkit",
+  });
+  assert.equal(calls[0].url, "http://127.0.0.1:8000/report");
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    number: "0240000005",
+    trick: "possible_fake_reversal",
+    reporter_id: "0240000001",
+    request_type: "reversal",
+    channel: "customer_sim_toolkit",
+  });
   t.after(restore);
 });
 
