@@ -10,7 +10,7 @@ test("boot leads to lock; Unlock then * reaches idle", () => {
   assert.equal(flow.state.screen, "boot");
   flow.finishBoot();
   assert.equal(flow.state.screen, "lock");
-  flow.press("softRight");
+  flow.press("ok");
   assert.ok(flow.state.lockAwaitStar);
   flow.press("*");
   assert.equal(flow.state.screen, "idle");

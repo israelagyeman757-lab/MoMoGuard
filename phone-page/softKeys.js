@@ -5,7 +5,7 @@ export function softKeyLabels(screen, context = {}) {
     case "idle":
       return { left: "Menu", right: "Names" };
     case "lock":
-      return { left: "", right: "Unlock" };
+      return { left: "Unlock", right: "" };
     case "apps":
       return { left: "Select", right: "Back" };
     case "messages":

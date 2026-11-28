@@ -85,6 +85,14 @@ for (const viewport of [
       assert.ok(insets.callLeftInset >= edgeMargin - 0.5, `call left inset ${insets.callLeftInset}px`);
       assert.ok(insets.endRightInset >= edgeMargin - 0.5, `end right inset ${insets.endRightInset}px`);
 
+      const badgeGap = await page.evaluate(() => {
+        const badge = document.querySelector(".badge-row");
+        const nav = document.querySelector(".navigation");
+        if (!badge || !nav) return -1;
+        return nav.getBoundingClientRect().top - badge.getBoundingClientRect().bottom;
+      });
+      assert.ok(badgeGap >= 7, `badge-to-D-pad gap ${badgeGap}px`);
+
       await page.screenshot({ path: `/opt/cursor/artifacts/${viewport.shot}`, fullPage: false });
     } finally {
       await browser.close();

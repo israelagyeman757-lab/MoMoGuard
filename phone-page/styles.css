@@ -15,7 +15,7 @@
   --lcd-ink: #141414;
   --lcd-muted: #5c5c5c;
   --lcd-bar: #ffffff;
-  --call-green: #2d9e52;
+  --call-green: #1db954;
   --end-red: #d63b2c;
   --stage-bg: #1a1a1e;
   --phone-w: 236px;
@@ -531,24 +531,39 @@ button:focus-visible {
 
 /* --- MTN oval badge ----------------------------------------------- */
 
+.badge-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 0;
+  margin: 0;
+  position: relative;
+  z-index: 2;
+}
+
 .mtn-badge {
   display: flex;
   justify-content: center;
-  margin: 8px 0 6px;
+  margin: 0;
 }
 
 /* --- Nav cluster -------------------------------------------------- */
 
 .nav-cluster {
   width: 100%;
-  margin-top: 2px;
+  margin: 0;
+  padding: 8px 0 0;
+  position: relative;
+  z-index: 1;
 }
 
 .phone-controls-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 100px minmax(0, 1fr);
-  grid-template-rows: 26px 36px;
-  gap: 6px 8px;
+  grid-template-rows: 50px 50px;
+  column-gap: 6px;
+  row-gap: 6px;
   width: 100%;
   padding: 0 10px;
   align-items: center;
@@ -572,10 +587,11 @@ button:focus-visible {
 }
 
 .hw-soft {
-  height: 22px;
+  height: 26px;
   width: 100%;
   margin: 0;
   padding: 0;
+  justify-self: stretch;
 }
 
 .hw-soft:active,
@@ -618,10 +634,9 @@ button:focus-visible {
 .action-key {
   display: grid;
   place-items: center;
-  height: 34px;
+  height: 36px;
   width: 100%;
-  max-width: 62px;
-  justify-self: center;
+  justify-self: stretch;
   margin: 0;
   padding: 0;
   border: 0;
@@ -683,12 +698,12 @@ button:focus-visible {
 
 .number-key {
   height: 36px;
-  padding: 3px 8px;
+  padding: 0 10px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 1px;
+  justify-content: space-between;
+  gap: 6px;
   border: 1px solid var(--gold-key-edge);
   border-radius: 999px;
   color: #2e2618;
@@ -700,33 +715,28 @@ button:focus-visible {
 }
 
 .number-key strong {
+  flex: 0 0 auto;
   font-size: 16px;
   font-weight: 700;
-  line-height: 1.05;
+  line-height: 1;
 }
 
 .number-key small,
 .number-key .key-alt {
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 9px;
+  justify-content: flex-end;
+  min-height: 12px;
   font-size: 8px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .03em;
-  color: #3f331f;
+  color: #322818;
 }
 
-.number-key:has(.key-alt) {
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  gap: 4px;
-}
-
-.number-key:has(.key-alt) strong {
-  margin-right: auto;
+.number-key .key-alt svg {
+  color: #322818;
 }
 
 .phone-mic {

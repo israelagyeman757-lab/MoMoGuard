@@ -311,14 +311,6 @@ export class PhoneFlow {
 
   press(key, now = Date.now()) {
     if (key === "softRight") {
-      if (this.state.screen === "idle") {
-        this._go("apps");
-        return;
-      }
-      if (this.state.screen === "lock") {
-        this.state.lockAwaitStar = true;
-        return;
-      }
       key = "back";
     }
 

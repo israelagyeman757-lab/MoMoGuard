@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const indexHtml = readFileSync(join(here, "..", "index.html"), "utf8");
 
 test("soft keys on lock and STK input", () => {
-  assert.deepEqual(softKeyLabels("lock"), { left: "", right: "Unlock" });
+  assert.deepEqual(softKeyLabels("lock"), { left: "Unlock", right: "" });
   assert.deepEqual(softKeyLabels("stkCheckInput"), { left: "", right: "Back" });
 });
 
