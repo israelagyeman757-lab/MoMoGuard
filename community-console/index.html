@@ -3,49 +3,125 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MoMoGuard Moderator Dashboard</title>
-  <link rel="stylesheet" href="./styles.css">
+  <meta name="theme-color" content="#b45309">
+  <title>MoMoGuard Community Console</title>
+  <link rel="stylesheet" href="/community-console/styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1>MoMoGuard <span>Moderator</span></h1>
-    <div class="auth">
-      <button id="login_mod" type="button">Demo login</button>
-      <span id="auth_status">Not signed in</span>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <header class="site-header">
+    <div class="site-brand">
+      <h1>MoMoGuard Community</h1>
+      <p>Moderator dashboard · reporters stay hidden</p>
+    </div>
+    <div class="site-auth">
+      <span id="auth_status" class="auth-badge">Signing in…</span>
+      <button id="login_mod" type="button" class="btn primary">Demo moderator login</button>
     </div>
   </header>
-  <main class="layout">
-  <section class="panel stats" id="overview_panel">
-    <h2>Overview</h2>
-    <input type="password" id="auth_token" placeholder="Bearer token" />
-    <button id="load_overview" type="button">Load overview</button>
-    <pre id="overview"></pre>
-  </section>
-  <section class="panel">
-    <h2>Reports</h2>
-    <button id="load_reports" type="button">Refresh reports</button>
-    <div id="reports_list"></div>
-  </section>
-  <section class="panel">
-    <h2>Number intelligence</h2>
-    <input id="lookup_number" placeholder="0244123456" />
-    <button id="lookup_btn" type="button">Check</button>
-    <pre id="lookup_out"></pre>
-  </section>
-  <section class="panel">
-    <h2>Warnings</h2>
-    <input id="warn_title" placeholder="Warning title" />
-    <textarea id="warn_body" placeholder="Behaviour description (no reporter names)"></textarea>
-    <button id="create_warning" type="button">Create draft</button>
-    <button id="load_warnings" type="button">List warnings</button>
-    <div id="warnings_list"></div>
-  </section>
-  <section class="panel">
-    <h2>Training analytics</h2>
-    <pre id="training_stats"></pre>
-  </section>
+
+  <nav class="site-nav" aria-label="Sections">
+    <button type="button" class="nav-tab is-active" data-section="overview">Overview</button>
+    <button type="button" class="nav-tab" data-section="reports">Reports</button>
+    <button type="button" class="nav-tab" data-section="lookup">Number check</button>
+    <button type="button" class="nav-tab" data-section="warnings">Warnings</button>
+    <button type="button" class="nav-tab" data-section="training">Training</button>
+    <button type="button" class="nav-tab" data-section="stk">STK push</button>
+  </nav>
+
+  <main class="site-main">
+    <section class="section card is-active" id="section_overview" data-section="overview">
+      <div class="section-head">
+        <h2>Overview</h2>
+        <button id="load_overview" type="button" class="btn ghost">Refresh</button>
+      </div>
+      <div id="overview_loading" class="loading skeleton" hidden>Loading stats…</div>
+      <div id="stat_cards" class="stat-grid"></div>
+      <div class="card inset">
+        <h3>Top tactics</h3>
+        <ul id="top_tactics" class="tactic-list"></ul>
+      </div>
+    </section>
+
+    <section class="section card" id="section_reports" data-section="reports" hidden>
+      <div class="section-head">
+        <h2>Reports</h2>
+        <button id="load_reports" type="button" class="btn ghost">Refresh</button>
+      </div>
+      <div id="reports_loading" class="loading" hidden>Loading reports…</div>
+      <div id="reports_empty" class="empty" hidden>No reports yet.</div>
+      <table class="data-table" id="reports_table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Number</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Description</th>
+            <th>Update</th>
+          </tr>
+        </thead>
+        <tbody id="reports_body"></tbody>
+      </table>
+    </section>
+
+    <section class="section card" id="section_lookup" data-section="lookup" hidden>
+      <div class="section-head"><h2>Number intelligence</h2></div>
+      <div class="lookup-row">
+        <label class="field">
+          <span>Phone number</span>
+          <input id="lookup_number" type="tel" placeholder="0244123456" autocomplete="off" />
+        </label>
+        <button id="lookup_btn" type="button" class="btn primary">Check in MoMoGuard DB</button>
+      </div>
+      <div id="lookup_card" class="lookup-card" hidden>
+        <span id="lookup_badge" class="risk-badge">—</span>
+        <p id="lookup_message" class="lookup-message"></p>
+        <p id="lookup_disclaimer" class="fine-print"></p>
+      </div>
+    </section>
+
+    <section class="section card" id="section_warnings" data-section="warnings" hidden>
+      <div class="section-head">
+        <h2>Warnings</h2>
+        <button id="load_warnings" type="button" class="btn ghost">Refresh list</button>
+      </div>
+      <div class="card inset composer">
+        <h3>Create draft</h3>
+        <label class="field"><span>Title</span><input id="warn_title" type="text" placeholder="Fake MTN agents asking for PIN" /></label>
+        <label class="field"><span>Description</span><textarea id="warn_body" rows="3" placeholder="Describe behaviour patterns only — no reporter names."></textarea></label>
+        <button id="create_warning" type="button" class="btn primary">Save draft</button>
+      </div>
+      <div id="warnings_list" class="warnings-list"></div>
+    </section>
+
+    <section class="section card" id="section_training" data-section="training" hidden>
+      <div class="section-head"><h2>Training analytics</h2></div>
+      <div class="chart" id="training_chart" aria-label="Average scores by assessment type"></div>
+      <dl class="training-dl" id="training_stats"></dl>
+    </section>
+
+    <section class="section card" id="section_stk" data-section="stk" hidden>
+      <div class="section-head"><h2>STK proactive alert</h2></div>
+      <p class="fine-print">Queues a SIM Toolkit style tip on the feature-phone idle screen (polls <code>GET /stk/push</code>).</p>
+      <label class="field"><span>Alert text</span>
+        <textarea id="stk_text" rows="3">High-risk reversal calls reported today. Never send money to verify a payment.</textarea>
+      </label>
+      <div class="check-row">
+        <label><input type="checkbox" id="stk_more" checked /> Include “More” → warnings</label>
+        <label><input type="checkbox" id="stk_report" checked /> Offer report shortcut on phone</label>
+      </div>
+      <button id="stk_push_btn" type="button" class="btn primary">Push STK pop-up to phone</button>
+    </section>
   </main>
-  <p class="note">Demo moderators use token from POST /auth/demo-login. Reporters' identities are hidden.</p>
-  <script type="module" src="./app.js"></script>
+
+  <footer class="site-footer">
+    <p>Blueprint demo · <a href="/phone-page/">Open feature phone</a> · <a href="/training-app/">Training app</a></p>
+  </footer>
+
+  <input type="hidden" id="auth_token" aria-hidden="true" tabindex="-1" />
+
+  <script type="module" src="/community-console/app.js"></script>
 </body>
 </html>

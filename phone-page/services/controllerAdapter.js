@@ -51,3 +51,11 @@ export function submitTrainingAttempt(body) {
 export function resetDemo() {
   return post("/reset-demo", {});
 }
+
+export function pollStkPush(consumer = "phone-user-1") {
+  return request(`/stk/push?consumer=${encodeURIComponent(consumer)}`);
+}
+
+export function enqueueStkPush(body) {
+  return post("/stk/push", body);
+}

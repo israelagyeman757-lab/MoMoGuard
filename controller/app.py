@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
+import uuid
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -50,6 +51,8 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
     ussd = CommunityUssdRouter(lookup_number, submit_report, list_warnings)
     app.state.db = db
     app.state.ussd = ussd
+    stk_outbox: list[dict] = []
+    stk_seen: dict[str, set[str]] = {}
 
     def _mod_auth(authorization: str | None, allow_viewer: bool = False):
         try:
@@ -237,7 +240,30 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
         db.reset()
         seed_demo(db)
         ussd.reset()
+        stk_outbox.clear()
+        stk_seen.clear()
         return {"status": "ok", "message": "Demo data reloaded."}
+
+    @app.get("/stk/push")
+    async def stk_poll(consumer: str = Query(default="phone-user-1")):
+        for message in stk_outbox:
+            delivered = stk_seen.setdefault(message["id"], set())
+            if consumer in delivered:
+                continue
+            delivered.add(consumer)
+            return {**message, "pending": True}
+        return {"pending": False}
+
+    @app.post("/stk/push")
+    async def stk_enqueue(body: dict):
+        message = {
+            "id": uuid.uuid4().hex[:12],
+            "text": body.get("text", "MoMoGuard alert"),
+            "more": bool(body.get("more")),
+            "report": bool(body.get("report")),
+        }
+        stk_outbox.append(message)
+        return message
 
     return app
 
