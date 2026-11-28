@@ -233,17 +233,36 @@ async function loadWarnings() {
   renderWarnings(data.warnings || []);
 }
 
+function localDayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatDurationLeft(totalMins) {
+  if (totalMins < 1) return "0m left";
+  if (totalMins < 60) return `${totalMins}m left`;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (m === 0) return `${h}h left`;
+  return `${h}h ${m}m left`;
+}
+
 function formatHoldUntil(iso) {
   if (!iso) return "—";
   const dt = new Date(String(iso).includes("Z") ? iso : `${iso}Z`);
   if (Number.isNaN(dt.getTime())) return "—";
+  const now = new Date();
   const hhmm = dt.toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
   });
-  const mins = Math.max(0, Math.round((dt.getTime() - Date.now()) / 60_000));
-  return `${hhmm} (${mins}m left)`;
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (localDayKey(dt) === localDayKey(tomorrow) && localDayKey(dt) !== localDayKey(now)) {
+    return `Tomorrow ${hhmm}`;
+  }
+  const totalMins = Math.max(0, Math.round((dt.getTime() - now.getTime()) / 60_000));
+  return `${hhmm} (${formatDurationLeft(totalMins)})`;
 }
 
 const HOLD_REASON_EN = {
@@ -295,10 +314,10 @@ function renderHolds(holds) {
     const st = (h.status || "held").toLowerCase();
     const active = st === "held" || st === "extended";
     const actions = active
-      ? `<div class="row-actions">
-          <button type="button" class="btn ghost hold-release" data-id="${h.id}">Release</button>
-          <button type="button" class="btn ghost hold-extend" data-id="${h.id}">Extend</button>
-          <button type="button" class="btn ghost hold-reverse" data-id="${h.id}">Reverse</button>
+      ? `<div class="row-actions row-actions-holds">
+          <button type="button" class="btn ghost btn-compact hold-release" data-id="${h.id}">Release</button>
+          <button type="button" class="btn ghost btn-compact hold-extend" data-id="${h.id}">Extend</button>
+          <button type="button" class="btn ghost btn-compact hold-reverse" data-id="${h.id}">Reverse</button>
         </div>`
       : "—";
     return `
@@ -306,7 +325,7 @@ function renderHolds(holds) {
       <td>#${h.id}</td>
       <td>${h.payer_masked || "—"}</td>
       <td>${h.payee_masked || "—"}</td>
-      <td>GHS ${Number(h.amount).toFixed(2)}</td>
+      <td class="hold-amount">GHS ${Number(h.amount).toFixed(2)}</td>
       <td>${riskChip(h.risk_level)}</td>
       <td>${holdReasonText(h)}</td>
       <td>${formatHoldUntil(h.release_at)}</td>

@@ -251,6 +251,28 @@ input, textarea, select {
   gap: 0.35rem;
 }
 
+.holds-table td.hold-amount,
+.holds-table td:last-child {
+  white-space: nowrap;
+}
+
+.holds-table .row-actions-holds {
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+}
+
+.holds-table .btn-compact {
+  padding: 0.18rem 0.42rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  border-radius: 8px;
+}
+
+.holds-table td:nth-child(6) {
+  white-space: normal;
+  max-width: 16rem;
+}
+
 .row-actions select {
   max-width: 9rem;
   font-size: 0.85rem;
