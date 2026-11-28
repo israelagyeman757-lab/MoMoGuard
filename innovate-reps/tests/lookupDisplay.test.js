@@ -11,7 +11,8 @@ test("a flagged result shows a danger tone and carries history + source", () => 
   });
   assert.equal(described.tone, "danger");
   assert.equal(described.heading, "Elevated Glance signal");
-  assert.equal(described.history.length, 1);
+  assert.ok(described.history.length >= 1);
+  assert.ok(described.history.some(line => /not a confirmed fraud finding/i.test(line)));
   assert.equal(described.source, "rancard_stub");
 });
 
