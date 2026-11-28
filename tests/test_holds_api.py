@@ -120,6 +120,75 @@ def test_holds_recent_after_reverse(client):
     assert "held" in statuses
 
 
+def test_sandbox_plugin_nested_data_receive_and_cashout_authorize(client):
+    """Live Innofemme webhooks nest the payment under `data`."""
+    payee_msisdn = "0244999777"
+    recv = client.post(
+        "/sandbox/plugin",
+        json={
+            "point": "payment.receive",
+            "data": {
+                "payer": {"msisdn": "0244999005"},
+                "payee": {"msisdn": payee_msisdn, "walletOpenedAt": "2020-01-01T00:00:00Z"},
+                "amount": 25,
+                "paymentsFromThisPayerBefore": 0,
+                "transactionId": "nested-txn-1",
+            },
+        },
+    )
+    assert recv.status_code == 200
+    assert recv.json()["decision"] == "allow"
+    check = client.get(f"/holds/withdraw-check/{payee_msisdn}")
+    assert check.json()["allow"] is False
+
+    start = time.monotonic()
+    auth = client.post(
+        "/sandbox/plugin",
+        json={
+            "point": "payment.authorize",
+            "type": "cashout",
+            "data": {
+                "payer": {"msisdn": payee_msisdn},
+                "payee": {"msisdn": "0000000000"},
+                "amount": 20,
+            },
+        },
+    )
+    assert time.monotonic() - start < 2.0
+    body = auth.json()
+    assert body["decision"] == "delay"
+    assert body["minutes"] >= 1
+
+
+def test_sandbox_plugin_receive_skips_agent_and_cashout(client):
+    agent = client.post(
+        "/sandbox/plugin",
+        json={
+            "point": "payment.receive",
+            "payee": {"msisdn": "0244000001", "walletType": "agent"},
+            "payer": {"msisdn": "0244999011"},
+            "amount": 10,
+            "paymentsFromThisPayerBefore": 0,
+        },
+    )
+    assert agent.json()["decision"] == "allow"
+    assert client.get("/holds/withdraw-check/0244000001").json()["allow"] is True
+
+    cashout = client.post(
+        "/sandbox/plugin",
+        json={
+            "point": "payment.receive",
+            "type": "cashout",
+            "payer": {"msisdn": "0244999012"},
+            "payee": {"msisdn": "0244000002"},
+            "amount": 10,
+            "paymentsFromThisPayerBefore": 0,
+        },
+    )
+    assert cashout.json()["decision"] == "allow"
+    assert client.get("/holds/withdraw-check/0244000002").json()["allow"] is True
+
+
 def test_flagged_payee_24h(client):
     client.post(
         "/reports",
