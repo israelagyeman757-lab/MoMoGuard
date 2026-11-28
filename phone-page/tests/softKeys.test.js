@@ -16,6 +16,9 @@ test("soft keys on lock and STK input", () => {
 test("labels live on LCD footer, not bezel buttons", () => {
   assert.match(indexHtml, /id="screen_soft_left"/);
   assert.match(indexHtml, /id="screen_soft_right"/);
+  assert.match(indexHtml, /id="soft_left"/);
+  assert.doesNotMatch(indexHtml, /soft-key-row/);
+  assert.doesNotMatch(indexHtml, /soft-chevron/);
   assert.doesNotMatch(indexHtml, /id="soft_left_label"/);
 });
 

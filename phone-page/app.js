@@ -4,6 +4,7 @@ import * as controller from "./services/controllerAdapter.js";
 import { softKeyLabels } from "./softKeys.js";
 import { mapKeyboardEvent } from "./keyboardMap.js";
 import { CARRIER_MENU, MOMO_MENU, REPORT_TYPES } from "./menuData.js";
+import { iconSim, menuItemIcon } from "./phone-icons.js";
 
 const flow = new PhoneFlow({ mode: CONFIG.MODE });
 const screenContent = document.querySelector("#screen_content");
@@ -31,8 +32,12 @@ function escapeHtml(value) {
 function menuListHtml(items, index) {
   return `<ul class="stk-list" role="listbox">${items.map((item, i) => {
     const label = typeof item === "string" ? item : item.label;
-    return `<li class="stk-list-item ${i === index ? "is-active" : ""}" role="option" aria-selected="${i === index}">${escapeHtml(label)}</li>`;
+    return `<li class="stk-list-item ${i === index ? "is-active" : ""}" role="option" aria-selected="${i === index}">${menuItemIcon(item)}<span class="stk-list-label">${escapeHtml(label)}</span></li>`;
   }).join("")}</ul>`;
+}
+
+function stkTitle(label) {
+  return `<p class="stk-hd"><span class="stk-hd-icon" aria-hidden="true">${iconSim()}</span><span>${escapeHtml(label)}</span></p>`;
 }
 
 function inputScreen(title, hint) {
@@ -67,9 +72,9 @@ function screenTemplate() {
     case "sms":
       return `<p class="stk-hd">Message</p><div class="sms-card"><p>${escapeHtml(s.message)}</p></div>${s.messageTag === "scam" ? '<p class="screen-small">Select: report this number</p>' : ""}`;
     case "stkCarrier":
-      return `<p class="stk-hd">SIM Toolkit</p><p class="stk-sub">MTN Ghana</p>${menuListHtml(CARRIER_MENU, 0)}`;
+      return `${stkTitle("SIM Toolkit")}<p class="stk-sub">MTN Ghana</p>${menuListHtml(CARRIER_MENU, 0)}`;
     case "stkMomo":
-      return `<p class="stk-hd">MoMoGuard</p>${menuListHtml(MOMO_MENU, s.stkMenuIndex)}`;
+      return `${stkTitle("MoMoGuard")}${menuListHtml(MOMO_MENU, s.stkMenuIndex)}`;
     case "stkCheckInput":
       return inputScreen("Check number", "No reports ≠ safe.");
     case "stkCheckResult": {
@@ -140,10 +145,7 @@ function scrollListItem(selector, index) {
   const item = items[index];
   const list = item?.closest(".inbox-list") || item?.parentElement;
   if (!list || !item) return;
-  const listRect = list.getBoundingClientRect();
-  const itemRect = item.getBoundingClientRect();
-  if (itemRect.bottom > listRect.bottom) list.scrollTop += itemRect.bottom - listRect.bottom;
-  else if (itemRect.top < listRect.top) list.scrollTop -= listRect.top - itemRect.top;
+  item.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 function patchMenuSelection(screen) {
@@ -198,6 +200,11 @@ function renderSoftLabels() {
   });
   if (screenSoftLeft) screenSoftLeft.textContent = labels.left;
   if (screenSoftRight) screenSoftRight.textContent = labels.right;
+  const stkBadge = document.querySelector("#status_stk");
+  if (stkBadge) {
+    const unread = flow.messages.some(m => m.tag === "scam" && (m.time === "NOW" || m.preview));
+    stkBadge.hidden = !(unread || flow.state.screen === "stkPopup");
+  }
 }
 
 function fullRender() {
