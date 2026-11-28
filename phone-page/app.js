@@ -98,7 +98,7 @@ function screenTemplate() {
           ${flow.messages.map((message, index) => `<div class="inbox-message ${index === state.selectedMessage ? "is-selected" : ""}" role="option" aria-selected="${index === state.selectedMessage}">
             <div class="inbox-top"><span class="inbox-sender">${escapeHtml(message.sender)}</span><span class="inbox-time">${escapeHtml(message.time)}</span></div>
             <p class="inbox-preview">${escapeHtml(message.preview)}</p>
-            ${message.tag === "possible_fake" ? '<span class="msg-tag fake">POSSIBLE FAKE</span>' : message.tag === "transaction" ? '<span class="msg-tag txn">PAYMENT</span>' : ""}
+            ${message.tag === "transaction" ? '<span class="msg-tag txn">PAYMENT</span>' : ""}
           </div>`).join("")}
         </div>
         <div class="screen-actions">Up/Down: choose &nbsp; OK: read</div>
@@ -242,10 +242,8 @@ function screenTemplate() {
       const current = flow.messages[state.selectedMessage] || {};
       const title = state.messageTag === "transaction" ? "Payment receipt" : "Message";
       return `<h2 class="screen-heading">${escapeHtml(title)}</h2>
-        ${state.messageTag === "possible_fake" ? '<div class="msg-tag fake">POSSIBLE FAKE</div>' : ""}
         <div class="sms-card"><div class="sms-sender">${escapeHtml(current.sender || "UNKNOWN")} · ${escapeHtml(current.time || "NOW")}</div>
         <div>${escapeHtml(state.message)}</div></div>
-        ${state.messageWarning ? `<div class="sms-warning">${escapeHtml(state.messageWarning)}</div>` : ""}
         <div class="screen-source">source: simulated</div>`;
     }
     case "pin":
@@ -359,7 +357,6 @@ function dispatch(key) {
     if (flow.state.loadingKind === "autoCall") runSimulatedCallFlow();
     else runServerRequest();
   }
-  if (CONFIG.MODE === "controller" && flow.state.screen === "sms" && previousScreen !== "sms") checkSmsForCurrentMessage();
   scheduleCurrentScreen();
 }
 
@@ -399,25 +396,6 @@ async function runSimulatedCallFlow() {
   }
   render();
   scheduleCurrentScreen();
-}
-
-async function checkSmsForCurrentMessage() {
-  const message = flow.messages[flow.state.selectedMessage];
-  if (!message?.senderNumber) return;
-  const result = await controller.checkSms({
-    sender: message.senderNumber,
-    recipient: flow.sender,
-    text: message.text,
-    ts: new Date().toISOString().slice(0, 19),
-  });
-  if (!result.ok || flow.state.screen !== "sms") return;
-  if (result.data.recommended_action === "warn" && result.data.warning) {
-    message.warning = result.data.warning;
-    flow.state.messageWarning = result.data.warning;
-    if (!message.tag) message.tag = "possible_fake";
-    flow.state.messageTag = flow.state.messageTag || message.tag;
-    render();
-  }
 }
 
 for (const button of document.querySelectorAll("[data-key]")) {

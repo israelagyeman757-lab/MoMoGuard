@@ -26,8 +26,8 @@
       <p class="console-copy">
         This page does not score anything itself. Every button here sends a scenario across a
         same-origin browser bridge into the open feature-phone tab, which then calls the real
-        MoMoGuard controller — <code>/check-sms</code> for messages, <code>/ussd</code> (which calls
-        <code>/assess</code>) for calls that turn into a payment — exactly as if that SMS or call had
+        MoMoGuard controller — simulated SMS land in open phone tabs with no message scanning;
+        <code>/ussd</code> (which calls <code>/assess</code>) drives simulated calls — exactly as if that SMS or call had
         really arrived. Keep the phone preview open in another tab to see it react.
       </p>
       <p class="bridge-status" id="bridge_status">Checking bridge…</p>
@@ -35,7 +35,7 @@
 
     <section class="panel" id="compose" aria-labelledby="compose-heading">
       <h2 id="compose-heading">1 · Compose a free-text SMS</h2>
-      <p class="panel-hint">Type anything and send it into the phone's inbox, just like a real incoming text. The phone checks it live against <code>/check-sms</code> when the operator opens it.</p>
+      <p class="panel-hint">Type anything and send it into the open smartphone or feature-phone inbox — display only, no backend SMS analysis.</p>
       <label class="field-label" for="sms_sender">From (number, sender ID, or leave blank for "UNKNOWN NUMBER")</label>
       <input id="sms_sender" type="text" placeholder="e.g. 0205551234 or MTN">
       <label class="field-label" for="sms_text">Message text</label>
@@ -68,7 +68,7 @@
 
   <footer class="page-footer">
     <span>SIMULATED CONTACTS · SIMULATED SIGNALS · no real calls, messages or money.</span>
-    <span>Every scenario reaches the controller only through <code>/check-sms</code> or <code>/ussd</code> → <code>/assess</code>.</span>
+    <span>Simulated calls reach the controller through <code>/ussd</code> → <code>/assess</code>. SMS is inbox-only.</span>
   </footer>
 
   <script type="module" src="./app.js"></script>

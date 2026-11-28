@@ -5,7 +5,7 @@
 // they been in touch?), nothing more. It does not implement any risk logic
 // itself — it hands a number and an amount to the live feature-phone page,
 // which then goes through the REAL controller (/ussd -> /assess, or
-// /check-sms) to decide what happens. The different outcomes you see for
+// /ussd) to decide what happens on answered calls. The different outcomes you see for
 // trusted vs. suspicious contacts come entirely from the controller's own
 // simulated bank/call-log/network/reputation signals already seeded for
 // these numbers (see CONTRACT.md "Demo accounts" and controller/plugs/*),

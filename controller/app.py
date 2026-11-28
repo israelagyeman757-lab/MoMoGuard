@@ -11,7 +11,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from controller.brain.scoring import amount_in_words, assess_payment, load_settings, needs_confirm
-from controller.message_agent.agent import assess_message
 from controller.metrics import MetricsStore
 from controller.pause_manager import PauseManager
 from controller.plugs.bank_plug import BankPlug
@@ -313,13 +312,6 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
     @app.get("/rancard/reverse-lookup")
     async def rancard_reverse_lookup(number: str):
         return await do_rancard_reverse_lookup(number)
-
-    @app.post("/check-sms")
-    async def check_sms(body: dict):
-        result = assess_message(body)
-        metrics.record("sms_check", sender=body.get("sender"),
-                       classification=result.get("classification"))
-        return result
 
     @app.post("/check-otp")
     async def check_otp(body: dict):

@@ -13,9 +13,9 @@ a real incoming SMS or call would, and to prove it with the controller's own
 reaction rather than faking the phone's screen. Keeping it a separate page
 means:
 
-- The phone preview stays a dumb screen exactly as `CONTRACT.md` describes —
-  it still only talks to the controller over `/ussd`, `/assess`, `/check-sms`,
-  etc. This console never calls the controller itself.
+- The phone previews stay dumb screens exactly as `CONTRACT.md` describes —
+  simulated **calls** still use `/ussd` → `/assess` on the open tab. SMS is
+  inbox-only (no `/check-sms`). This console never calls the controller itself.
 - Nothing about the existing phone preview's behaviour, mock-mode fallback,
   or tests changes for someone who never opens this page.
 
@@ -39,10 +39,9 @@ Message shapes on the channel:
 { type: "ack", requestId, status: "delivered" | "ringing" | "busy" | "rejected", reason? }
 ```
 
-- `incoming-sms` → the phone unshifts a new message into its own inbox
-  (`PhoneFlow.receiveSimulatedSms`), exactly where a real text would land.
-  Opening it on the phone runs the real `POST /check-sms` call the phone
-  already makes for every message (unchanged code path).
+- `incoming-sms` → open tabs (feature-phone preview and/or Innovate Reps
+  smartphone) unshift a new message into their inbox — display only, no
+  backend SMS analysis.
 - `incoming-call` → if the phone is idle, it shows a "simulated incoming
   call" screen with the caller's name/number/trust label
   (`PhoneFlow.receiveSimulatedCall`). Answering it (`PhoneFlow.answerSimulatedCall`)
@@ -74,10 +73,8 @@ preview" after a few seconds — nothing is silently faked.
 
 ### 1 — Compose a free-text SMS
 
-Type any sender and any message, then **Send to phone**. The phone's inbox
-gets a new message with that exact text; the controller only sees it (via
-`/check-sms`) once the operator opens it on the phone, same as any other
-message already in the inbox.
+Type any sender and any message, then **Send to phone**. Open tabs show the
+text in the Messages app only — the controller is not involved.
 
 ### 2 & 3 — Simulated contacts / trust model
 

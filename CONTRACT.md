@@ -1,4 +1,4 @@
-# MoMoGuard — v0.5
+# MoMoGuard — v0.6
 
 This file contains the authoritative product specification and the shared API contract
 between the **controller** (Python/FastAPI) and frontends (feature-phone, Innovate Reps,
@@ -598,7 +598,6 @@ Final objective: MoMoGuard should become a community-powered scam detection and 
 | `POST /report` | Report a number as *suspected*. Optional: `description`, `community`, `incident_time`, `claimed_identity`, `request_type`, `lost_money` (bool), `channel`. Returns `report_state` + `classification_note` (never proof). |
 | `GET /community/intelligence?number=` | Community report confidence band for a number (`unverified`, `corroborated`, `high_confidence_warning`, `no_reports`). Never proof of a scam. Used by demo-control and reporting feedback. |
 | `GET /rancard/reverse-lookup?number=` | Reverse number lookup via Rancard Glance. **Stub** — see `controller/plugs/rancard_glance_plug.py` and `docs/rancard-glance-integration.md`. Replaces the old `GET /check-number` (removed; `GlancePlug.check()` itself is unchanged and still feeds `/assess`'s internal risk scoring). |
-| `POST /check-sms` | Message Intelligence Agent. Warn-only. |
 | `POST /check-otp` | **STUB ONLY — on hold.** Returns a not-implemented placeholder. No OTP logic exists. |
 | `POST /ussd` | Server-driven menus: page sends the key pressed, controller returns the next screen text. |
 | `GET /metrics` | Scoreboard tiles: scams stopped, seconds added (avg + p95), payments checked. |
@@ -723,32 +722,6 @@ wasn't found in Rancard's public documentation — no real HTTP call is made.
 - `"no_results"`/`"clear"` never mean "safe" — every message says so explicitly, same convention as
   the rest of this project.
 
-## POST /check-sms
-
-```json
-// request
-{ "sender": "0240000005", "recipient": "0240000001",
-  "text": "I have sent you GH₵300. Please return GH₵200 immediately.", "ts": "..." }
-// response
-{ "message_type": "financial_claim|financial_alert|not_financial",
-  "classification": "suspicious|likely_honest|unknown",
-  "risk_level": "low|medium|high",
-  "labels": ["possible_fake_deposit", "request_to_return_money", "urgency"],
-  "evidence": { "claimed_amount": 300,
-                "matching_transaction": "matched|not_matched|unavailable",
-                "sender_type": "normal_number|sender_id",
-                "institutional_authenticity": "missing_marker|unsupported_method|unavailable" },
-  "recommended_action": "allow|warn",
-  "explanation": "plain-language reason",
-  "warning": "text for the phone screen (only when warn)",
-  "checker_status": "complete|not_checked|error",
-  "source": "simulated" }
-```
-- **Warn-only.** Never deletes, blocks, or holds a message. No `hold` action exists.
-- Agent error/timeout → `{ "checker_status": "not_checked", "recommended_action": "allow" }` (fail open).
-- Ledger matching is `unavailable` in this build (classifier-only until the sandbox DataPlug lands).
-- Label vocabulary maps to three scam names: possible fake reversal, possible impersonation, possible advance fee. Always "may be", shown only when clues agree.
-
 ## POST /check-otp — STUB (on hold)
 
 Accepts any JSON body. Always returns:
@@ -794,7 +767,7 @@ No OTP logic is built. The OTP approach is still being decided by the project ow
 ## GET /audit
 
 ```json
-{ "events": [ { "ts": "...", "type": "assess|confirm|voice_result|release|cancel|expire|report|sms_check",
+{ "events": [ { "ts": "...", "type": "assess|confirm|voice_result|release|cancel|expire|report",
                 "sender": "...", "recipient": "...", "amount": 300,
                 "band": "high", "decision": "hold", "reference": "r1" } ],
   "source": "simulated" }
@@ -811,8 +784,7 @@ Restores pretend bank balances/history, clears paused payments, reports, metrics
 - `decision` (assess): `allow | confirm | caution | hold | block`
 - `band`: `low | caution | high | very_high`
 - `decision` (voice-result): `release | hold | cancel`
-- SMS `recommended_action`: `allow | warn` (no `hold`)
-- `checker_status`: `complete | not_checked | error`
+- `checker_status`: `complete | not_checked | error` (OTP stub only)
 - `evidence.matching_transaction`: `matched | not_matched | unavailable`
 - `institutional_authenticity`: `recognised_sender_id | institutional_sender_tag | verified_signature | invalid_marker | missing_marker | unsupported_method | unavailable` (never `not_verified`)
 - Network statuses: `detected | not_detected | unavailable | error`
