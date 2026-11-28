@@ -12,6 +12,11 @@ __pycache__/
 # local research material (not part of the build)
 Read stuff/
 
+# phone-page dev
+phone-page/node_modules/
+phone-page/test-results/
+phone-page/package-lock.json
+
 # OS / editor
 Thumbs.db
 .DS_Store

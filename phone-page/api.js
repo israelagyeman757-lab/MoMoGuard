@@ -1,15 +1,13 @@
-import { CONFIG } from "../config.js";
-
-const DEFAULT_TIMEOUT_MS = 5000;
+import { CONFIG } from "./config.js";
 
 async function request(path, options = {}) {
-  if (CONFIG.MODE !== "controller" || !CONFIG.CONTROLLER_URL) {
+  if (CONFIG.MODE !== "controller") {
     return { ok: false, error: "controller_not_configured" };
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CONFIG.CONTROLLER_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), CONFIG.CONTROLLER_TIMEOUT_MS);
   try {
-    const response = await fetch(`${CONFIG.CONTROLLER_URL}${path}`, {
+    const response = await fetch(`${CONFIG.API_BASE}${path}`, {
       ...options,
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
@@ -27,20 +25,31 @@ function post(path, body) {
   return request(path, { method: "POST", body: JSON.stringify(body) });
 }
 
-export function checkNumber(phone) {
-  const enc = encodeURIComponent(phone);
-  return request(`/numbers/check/${enc}`);
+export function getHealth() {
+  return request("/health");
 }
 
-export function submitReport(payload) {
-  return post("/reports", payload);
+export function checkNumber(phone) {
+  return request(`/numbers/check/${encodeURIComponent(phone)}`);
+}
+
+export function submitReport(body) {
+  return post("/reports", body);
 }
 
 export function getWarnings() {
   return request("/warnings?status=published");
 }
 
-export function trainingQuestions(assessmentType = "pre") {
+export function getTrainingScenarios() {
+  return request("/training/scenarios");
+}
+
+export function getTrainingScenario(id) {
+  return request(`/training/scenarios/${encodeURIComponent(id)}`);
+}
+
+export function getTrainingQuestions(assessmentType = "pre") {
   return request(`/training/questions?assessment_type=${encodeURIComponent(assessmentType)}`);
 }
 
@@ -48,14 +57,22 @@ export function submitTrainingAttempt(body) {
   return post("/training/attempts", body);
 }
 
-export function resetDemo() {
-  return post("/reset-demo", {});
+export function getTrainingResults(userId) {
+  return request(`/training/results/${encodeURIComponent(userId)}`);
 }
 
-export function pollStkPush(consumer = "phone-user-1") {
+export function getTrainingRecommendations(userId) {
+  return request(`/training/recommendations/${encodeURIComponent(userId)}`);
+}
+
+export function pollStkPush(consumer) {
   return request(`/stk/push?consumer=${encodeURIComponent(consumer)}`);
 }
 
 export function enqueueStkPush(body) {
   return post("/stk/push", body);
+}
+
+export function resetDemo() {
+  return post("/reset-demo", {});
 }

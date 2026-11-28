@@ -64,7 +64,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
     async def health():
         return {"status": "ok", "backend": db.backend, "simulated_ussd": True}
 
-    @app.post("/reports")
+    @app.post("/reports", status_code=201)
     async def post_report(body: dict):
         for field in ("reporter_id", "scam_type"):
             if field not in body:

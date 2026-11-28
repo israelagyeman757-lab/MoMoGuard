@@ -1,46 +1,42 @@
-/** LCD corner labels (left = Select/OK, right = Back / Menu). */
+export function softKeysFor(state) {
+  const screen = state.screen;
+  const scamSelected = state.inbox?.[state.inboxIndex]?.tag === "scam";
 
-export function softKeyLabels(screen, context = {}) {
   switch (screen) {
-    case "idle":
-      return { left: "Select", right: "Menu" };
-    case "lock":
-      return { left: "", right: "Unlock" };
-    case "apps":
-      return { left: "Select", right: "Back" };
-    case "messages":
-      return { left: "Select", right: "Back" };
-    case "sms":
-      if (context.scam) return { left: "Report", right: "Back" };
-      return { left: "", right: "Back" };
+    case "boot": return { left: null, right: null };
+    case "lock": return { left: "soft.unlock", right: null };
+    case "idle": return { left: "soft.menu", right: "soft.names" };
+    case "menu": return { left: "soft.open", right: "soft.back" };
+    case "inbox": return { left: null, right: "soft.back" };
+    case "sms": return { left: state.currentSms?.tag === "scam" ? "soft.report" : null, right: "soft.back" };
+    case "contacts":
+    case "calllog": return { left: "soft.call", right: "soft.back" };
+    case "dialer": return { left: null, right: "soft.back" };
+    case "calling": return { left: null, right: "soft.end" };
+    case "settings": return { left: "soft.select", right: "soft.back" };
+    case "tools": return { left: "soft.select", right: "soft.back" };
+    case "calculator": return { left: null, right: "soft.back" };
+    case "help":
+    case "clockApp": return { left: "soft.ok", right: "soft.back" };
     case "stkCarrier":
     case "stkMomo":
-    case "stkReportType":
+    case "stkScenarios":
+    case "stkReportType": return { left: "soft.select", right: "soft.back" };
+    case "stkQuestion": return { left: "soft.select", right: "soft.back" };
+    case "stkResults":
     case "stkWarnings":
     case "stkTips":
-    case "stkHelp":
-    case "stkTrainingScenarios":
-    case "stkTrainingResults":
-      return { left: "Select", right: "Back" };
-    case "stkCheckInput":
-    case "stkReportNumber":
-    case "stkReportDesc":
-      return { left: "", right: "Back" };
+    case "stkHelp": return { left: "soft.select", right: "soft.back" };
+    case "stkScenarioDetail":
+    case "stkScore":
     case "stkCheckResult":
     case "stkReportDone":
-    case "stkTrainingDone":
-      return { left: "OK", right: "Back" };
-    case "stkTrainingQ":
-      return { left: "Select", right: "Back" };
-    case "stkPopup":
-      return {
-        left: context.more ? "More" : "",
-        right: "OK",
-      };
-    case "loading":
-      return { left: "", right: "" };
-    case "error":
-      return { left: "OK", right: "" };
+    case "stkError": return { left: "soft.ok", right: "soft.back" };
+    case "stkCheckInput":
+    case "stkReportNumber":
+    case "stkReportDesc": return { left: null, right: "soft.back" };
+    case "stkLoading": return { left: null, right: null };
+    case "stkPopup": return { left: state.popup?.more ? "soft.more" : null, right: "soft.ok" };
+    default: return { left: null, right: "soft.back" };
   }
-  return { left: "Select", right: "Back" };
 }

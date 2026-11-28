@@ -1,131 +1,125 @@
-/** Multi-tap T9 input with cursor (feature-phone style). */
-
-const KEY_MAP = {
-  2: "abc",
-  3: "def",
-  4: "ghi",
-  5: "jkl",
-  6: "mno",
-  7: "pqrs",
-  8: "tuv",
-  9: "wxyz",
-  0: " 0+",
+const LETTERS = {
+  "2": "abc",
+  "3": "def",
+  "4": "ghi",
+  "5": "jkl",
+  "6": "mno",
+  "7": "pqrs",
+  "8": "tuv",
+  "9": "wxyz",
 };
 
-const DEFAULT_TAP_MS = 750;
-
-export class T9Input {
-  constructor({ mode = "number", tapMs = DEFAULT_TAP_MS } = {}) {
-    this.mode = mode;
+export class T9 {
+  constructor({ tapMs = 800, now = () => Date.now(), maxLength = 40 } = {}) {
     this.tapMs = tapMs;
-    this.cells = [];
-    this.tapBuffer = "";
-    this.tapIndex = 0;
-    this.lastDigit = "";
-    this.lastTapAt = 0;
-    this.cursor = 0;
+    this.now = now;
+    this.maxLength = maxLength;
+    this.mode = "num";
+    this.text = "";
+    this.pendingKey = null;
+    this.pendingIndex = 0;
+    this.pendingAt = 0;
+    this.lastZeroAt = 0;
   }
 
   setMode(mode) {
-    this.mode = mode;
-    this.reset();
+    this.commit();
+    this.mode = mode === "abc" ? "abc" : "num";
   }
 
-  reset() {
-    this.cells = [];
-    this.tapBuffer = "";
-    this.tapIndex = 0;
-    this.lastDigit = "";
-    this.lastTapAt = 0;
-    this.cursor = 0;
+  setText(text) {
+    this.commit();
+    this.text = String(text ?? "").slice(0, this.maxLength);
   }
 
-  get value() {
-    return this.cells.join("");
+  pendingLetter() {
+    if (this.mode !== "abc" || !this.pendingKey) return "";
+    const letters = LETTERS[this.pendingKey] || "";
+    return letters[this.pendingIndex] || "";
   }
 
-  commitTap() {
-    if (!this.tapBuffer) return;
-    if (this.cursor < this.cells.length) {
-      this.cells[this.cursor] = this.tapBuffer;
-    } else {
-      this.cells.push(this.tapBuffer);
-    }
-    this.cursor += 1;
-    this.tapBuffer = "";
-    this.tapIndex = 0;
-    this.lastDigit = "";
+  display() {
+    return this.text + this.pendingLetter();
   }
 
-  pressDigit(digit, now = Date.now()) {
-    if (!/^[\d*#+]$/.test(digit)) return;
-    if (this.mode === "number") {
-      if (digit === "+") {
-        if (this.cursor < this.cells.length) this.cells[this.cursor] = "+";
-        else this.cells.push("+");
-        this.cursor += 1;
-        return;
+  tap(key) {
+    return this.mode === "num" ? this.tapNumber(key) : this.tapText(key);
+  }
+
+  tapNumber(key) {
+    this.commit();
+    if (!/^[\d*#]$/.test(key)) return false;
+    if (this.text.length >= this.maxLength) return false;
+    this.text += key;
+    return true;
+  }
+
+  insert(char) {
+    this.commit();
+    if (this.text.length >= this.maxLength) return false;
+    this.text += char;
+    return true;
+  }
+
+  tapText(key) {
+    if (!/^[\d*#]$/.test(key)) return false;
+
+    if (key === "0") {
+      const withinWindow = this.now() - this.lastZeroAt <= this.tapMs;
+      this.commit();
+      if (withinWindow && this.text.endsWith(" ")) {
+        this.text = `${this.text.slice(0, -1)}+`;
+      } else if (this.text.length < this.maxLength) {
+        this.text += " ";
       }
-      if (this.cursor < this.cells.length) this.cells[this.cursor] = digit;
-      else this.cells.push(digit);
-      this.cursor += 1;
-      return;
+      this.lastZeroAt = this.now();
+      return true;
     }
-    if (digit === "0") {
-      this.commitTap();
-      const ch = this.tapBuffer === "+" ? "+" : " ";
-      if (now - this.lastTapAt <= this.tapMs && this.lastDigit === "0" && this.tapBuffer === " ") {
-        this.tapBuffer = "+";
-      } else if (!this.tapBuffer) {
-        this.tapBuffer = ch;
+
+    if (!LETTERS[key]) return false;
+
+    if (this.pendingKey === key && this.now() - this.pendingAt <= this.tapMs) {
+      const letters = LETTERS[key];
+      this.pendingIndex = (this.pendingIndex + 1) % letters.length;
+      this.pendingAt = this.now();
+      return true;
+    }
+
+    this.commit();
+    this.pendingKey = key;
+    this.pendingIndex = 0;
+    this.pendingAt = this.now();
+    return true;
+  }
+
+  commit() {
+    if (!this.pendingKey) return false;
+    const letter = this.pendingLetter();
+    if (letter && this.text.length < this.maxLength) this.text += letter;
+    this.pendingKey = null;
+    this.pendingIndex = 0;
+    this.pendingAt = 0;
+    return true;
+  }
+
+  backspace() {
+    if (this.pendingKey) {
+      if (this.pendingIndex > 0) {
+        this.pendingIndex -= 1;
       } else {
-        this.commitTap();
-        this.tapBuffer = " ";
+        this.pendingKey = null;
       }
-      this.lastDigit = "0";
-      this.lastTapAt = now;
-      return;
+      this.pendingAt = this.now();
+      return true;
     }
-    const letters = KEY_MAP[digit];
-    if (!letters) return;
-    const sameBurst = digit === this.lastDigit && now - this.lastTapAt <= this.tapMs;
-    if (sameBurst && this.tapBuffer) {
-      this.tapIndex = (this.tapIndex + 1) % letters.length;
-      this.tapBuffer = letters[this.tapIndex];
-    } else {
-      this.commitTap();
-      this.tapIndex = 0;
-      this.tapBuffer = letters[0];
-      this.lastDigit = digit;
-    }
-    this.lastTapAt = now;
+    if (!this.text) return false;
+    this.text = this.text.slice(0, -1);
+    return true;
   }
 
   clear() {
-    if (this.tapBuffer) {
-      this.tapBuffer = "";
-      this.tapIndex = 0;
-      this.lastDigit = "";
-      return;
-    }
-    if (this.cursor > 0) {
-      this.cursor -= 1;
-      this.cells.pop();
-    }
-  }
-
-  /** Display with active letter cycle at cursor. */
-  display() {
-    const committed = this.cells.join("");
-    const tail = this.tapBuffer || "";
-    const cursorChar = tail || (this.cursor < this.cells.length ? this.cells[this.cursor] : "_");
-    if (this.mode === "number") {
-      return committed.slice(0, this.cursor) + cursorChar + committed.slice(this.cursor + 1);
-    }
-    return committed + tail + (this.tapBuffer ? "" : "");
-  }
-
-  inputModeLabel() {
-    return this.mode === "number" ? "123" : "Abc";
+    this.text = "";
+    this.pendingKey = null;
+    this.pendingIndex = 0;
   }
 }
