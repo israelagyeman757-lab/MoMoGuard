@@ -3,6 +3,7 @@ import { PhoneFlow } from "./phoneFlow.js";
 import * as controller from "./services/controllerAdapter.js";
 import { createDemoBridge } from "./services/demoBridge.js";
 import { loadLocale, t as translate, currentLocale } from "./i18n/i18n.js";
+import { softKeyLabels } from "./softKeys.js";
 
 const flow = new PhoneFlow({ mode: CONFIG.MODE });
 const screenContent = document.querySelector("#screen_content");
@@ -70,7 +71,6 @@ function centered(icon, title, message, hint = "", iconClass = "") {
     <h2 class="screen-heading">${escapeHtml(title)}</h2>
     <div class="screen-copy">${escapeHtml(message)}</div>
     ${hint ? `<div class="screen-actions">${escapeHtml(hint)}</div>` : ""}
-    <div class="screen-source">source: simulated</div>
   </div>`;
 }
 
@@ -91,7 +91,7 @@ function screenTemplate() {
           <strong>${escapeHtml(app.label)}</strong>
         </div>`).join("")}
         </div>
-        <div class="app-menu-hint">Navigation: choose &nbsp; OK: open</div>`;
+        `;
     case "messages":
       return `<h2 class="screen-heading">Messages</h2>
         <div class="inbox-list" role="listbox" aria-label="Message inbox">
@@ -100,22 +100,18 @@ function screenTemplate() {
             <p class="inbox-preview">${escapeHtml(message.preview)}</p>
             ${message.tag === "transaction" ? '<span class="msg-tag txn">PAYMENT</span>' : ""}
           </div>`).join("")}
-        </div>
-        <div class="screen-actions">Up/Down: choose &nbsp; OK: read</div>
-        <div class="screen-source">source: simulated</div>`;
+        </div>`;
     case "ussd":
-      return entryScreen("USSD entry", "Demo code", "Placeholder only. Not a real service code. OK to continue.");
+      return entryScreen("USSD", "Code", "*000#");
     case "serverLoading":
       return `<div class="screen-center"><span class="loading-spinner" aria-hidden="true"></span>
-        <h2 class="screen-heading">Please wait</h2><p class="screen-small">Checking with MoMoGuard…</p></div>`;
+        <h2 class="screen-heading">Wait</h2></div>`;
     case "server":
       return `<h2 class="screen-heading">MoMoGuard</h2>
         <div class="server-text">${escapeHtml(state.serverText).replace(/\n/g, "<br>")}</div>
-        <div class="entry-display server-entry">${escapeHtml(state.entry)}</div>
-        <div class="screen-actions">Type, then OK &nbsp; End: exit</div>
-        <div class="screen-source">controller · source: simulated</div>`;
+        <div class="entry-display server-entry">${escapeHtml(state.entry)}</div>`;
     case "serverError":
-      return centered("!", "Please try again", state.message, "OK: back to idle", "warning");
+      return centered("!", "Error", state.message, "OK", "warning");
     case "main":
       return `<h2 class="screen-heading">${escapeHtml(translations.mainTitle)}</h2>
         <ol class="screen-menu">
@@ -125,83 +121,79 @@ function screenTemplate() {
           <li><span class="menu-number">5</span>${escapeHtml(translations.language)}</li>
         </ol>`;
     case "recipient":
-      return entryScreen("Send Money", "Recipient number", "OK to continue. Back for menu.");
+      return entryScreen("Send Money", "Number", "");
     case "amount":
-      return `${entryScreen("Send Money", "Amount in GH₵", `To: ${state.recipient}. OK to continue.`)}`;
+      return entryScreen("Send Money", "Amount GH₵", state.recipient);
     case "confirm":
-      return `<h2 class="screen-heading">Confirm payment</h2>
-        <p class="screen-small">TO</p><div>${escapeHtml(state.recipient)}</div>
+      return `<h2 class="screen-heading">Confirm</h2>
+        <div>${escapeHtml(state.recipient)}</div>
         <div class="payment-amount">GH₵${escapeHtml(amount)}</div>
-        <div class="screen-rule"></div><div class="screen-actions">1 Yes &nbsp; 2 No</div>`;
+        <div class="screen-actions">1 Yes  2 No</div>`;
     case "bigConfirm":
-      return `<h2 class="screen-heading">Check this amount</h2>
-        <p class="screen-copy">You usually send about GH₵100 to Kofi. You are sending GH₵${escapeHtml(amount)} (${escapeHtml(state.confirm?.in_words)}).</p>
-        <div class="screen-actions">Continue? 1 Yes &nbsp; 2 No</div>`;
+      return `<h2 class="screen-heading">Big amount</h2>
+        <p class="screen-copy">GH₵${escapeHtml(amount)}. Usual ~GH₵100.</p>
+        <div class="screen-actions">1 Yes  2 No</div>`;
     case "loading":
       return `<div class="screen-center"><span class="loading-spinner" aria-hidden="true"></span>
-        <h2 class="screen-heading">Please wait</h2><p class="screen-small">Checking locally…<br>No controller connected.</p></div>`;
+        <h2 class="screen-heading">Wait</h2></div>`;
     case "sent":
-      return centered("✓", "Sent", state.message || `Sent GH₵${amount} to ${state.recipient}.`, "OK: demo PIN screen");
+      return centered("✓", "Sent", state.message || `GH₵${amount} → ${state.recipient}`, "OK");
     case "caution":
       return centered("!", "Caution", state.message, "1 Continue", "warning");
     case "paused":
-      return centered("Ⅱ", "Pause before sending", state.message, "Call: safety check", "warning");
+      return centered("Ⅱ", "Paused", state.message, "Call", "warning");
     case "blocked":
-      return centered("×", "Payment stopped", state.message, "End: return to idle", "stop");
+      return centered("×", "Stopped", state.message, "", "stop");
     case "incomingCall":
       return `<div class="incoming-call">
         <span class="call-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3 9 7l-2 3c1 3 3 5 6 6l3-2 4 4-1 3c-1 1-2 1-3 1C9 21 3 15 2 8c0-1 0-2 1-3l2-2Z"/></svg></span>
-        <strong>MoMoGuard safety call</strong><small>SIMULATED VOICE CHECK</small>
-        <div class="call-answer-hint">Call: answer<br>End: cancel</div>
+        <strong>MoMoGuard</strong>
+        <small>Safety check</small>
       </div>`;
     case "demoCall": {
       const contact = state.incomingCallContact || {};
-      const trustLabel = contact.trust === "trusted" ? "Saved contact \u00b7 trusted" : "Not in contacts \u00b7 unverified";
+      const trustLabel = contact.trust === "trusted" ? "Trusted" : "Unknown";
       return `<div class="incoming-call demo-incoming-call">
         <span class="call-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3 9 7l-2 3c1 3 3 5 6 6l3-2 4 4-1 3c-1 1-2 1-3 1C9 21 3 15 2 8c0-1 0-2 1-3l2-2Z"/></svg></span>
-        <strong>${escapeHtml(contact.name || "Unknown caller")}</strong>
-        <small>${escapeHtml(contact.number || "")}</small>
-        <small>${escapeHtml(trustLabel)}</small>
-        <span class="msg-tag demo-tag">DEMO-CONTROL \u00b7 SIMULATED CALL</span>
-        <div class="call-answer-hint">Call: answer<br>End: decline</div>
+        <strong>${escapeHtml(contact.name || "Unknown")}</strong>
+        <small>${escapeHtml(contact.number || "")} · ${escapeHtml(trustLabel)}</small>
       </div>`;
     }
     case "voiceAudio":
-      return `<div class="screen-center"><h2 class="screen-heading">Audio playing</h2>
+      return `<div class="screen-center"><h2 class="screen-heading">Listen</h2>
         <div class="audio-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <span class="lock-label">KEYPAD LOCKED</span><p class="screen-small">Listen to the short warning.<br>End still cancels.</p>
-        <div class="screen-source">simulated playback</div></div>`;
+        <span class="lock-label">Locked</span></div>`;
     case "voiceQuestion": {
       const item = voiceQuestions[state.voiceStep];
-      return `<div class="question-progress">SAFETY CHECK · ${state.voiceStep + 1} / 5</div>
+      return `<div class="question-progress">${state.voiceStep + 1}/5</div>
         <h2 class="screen-heading">${escapeHtml(item.question)}</h2>
         <ol class="screen-menu">${item.options.map((option, index) => `<li><span class="menu-number">${index + 1}</span>${escapeHtml(option)}</li>`).join("")}</ol>`;
     }
     case "cancelled":
-      return centered("×", "Cancelled", "Payment cancelled. Nothing was sent.", "End: return to idle", "stop");
+      return centered("×", "Cancelled", "Not sent.", "", "stop");
     case "reportNumber":
-      return entryScreen("Report a Scam", "Number to report", "OK to continue.");
+      return entryScreen("Report", "Number", "");
     case "reportType":
-      return `<h2 class="screen-heading">What may have happened?</h2><ol class="screen-menu">
-        <li><span class="menu-number">1</span>Possible fake reversal</li>
-        <li><span class="menu-number">2</span>Possible impersonation</li>
-        <li><span class="menu-number">3</span>Possible advance fee</li></ol>`;
+      return `<h2 class="screen-heading">Type</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>Fake reversal</li>
+        <li><span class="menu-number">2</span>Impersonation</li>
+        <li><span class="menu-number">3</span>Advance fee</li></ol>`;
     case "reportSent":
-      return centered("✓", "Report sent", "This number has been noted as suspected.", "End: return to idle");
+      return centered("✓", "Reported", "Number noted.", "");
     case "alerts":
-      return `<h2 class="screen-heading">Scam Alerts</h2><ul class="alert-list">
-        <li>A caller may ask you to reverse a payment you never received.</li>
-        <li>A real worker will not ask for your secret code.</li>
-        <li>No reports is not proof a number is safe.</li></ul><div class="screen-source">simulated alerts</div>`;
+      return `<h2 class="screen-heading">Alerts</h2><ul class="alert-list">
+        <li>Fake reversal calls happen.</li>
+        <li>Staff won't ask PIN.</li>
+        <li>No reports ≠ safe.</li></ul>`;
     case "simToolkit":
       return `<h2 class="screen-heading">${escapeHtml(t("simToolkitTitle"))}</h2><ol class="screen-menu">
         <li><span class="menu-number">1</span>${escapeHtml(t("simLearnTitle"))}</li>
         <li><span class="menu-number">2</span>${escapeHtml(t("simLookupTitle"))}</li>
         <li><span class="menu-number">3</span>${escapeHtml(t("simCommunityFraudMenu"))}</li></ol>`;
     case "simToolkitLearn":
-      return centered("i", t("simLearnTitle"), t("simLearnBody"), "Back: SIM Toolkit menu");
+      return centered("—", t("simLearnTitle"), t("simLearnBody"), "");
     case "simToolkitLookup":
-      return entryScreen(t("simLookupTitle"), t("simLookupNumber"), "OK to check with Glance.");
+      return entryScreen(t("simLookupTitle"), t("simLookupNumber"), "");
     case "simToolkitLookupResult": {
       const headingKey = {
         flagged: "simLookupHeadingFlagged",
@@ -213,48 +205,40 @@ function screenTemplate() {
       }[state.reverseLookupStatus] || "simLookupHeadingNone";
       const heading = t(headingKey);
       return `<h2 class="screen-heading">${escapeHtml(heading)}</h2>
-        <p class="screen-copy">${escapeHtml(state.reverseLookupMessage)}</p><div class="screen-rule"></div>
-        <p class="screen-small">Back: SIM Toolkit menu</p><div class="screen-source">${escapeHtml(t("simLookupNotProof"))}</div>`;
+        <p class="screen-copy">${escapeHtml(state.reverseLookupMessage)}</p>
+        <p class="screen-small">${escapeHtml(t("simLookupNotProof"))}</p>`;
     }
     case "simToolkitCommunityFraud":
       return `<h2 class="screen-heading">${escapeHtml(t("simCommunityFraudTitle"))}</h2>
         <p class="screen-copy">${escapeHtml(t("simCommunityFraudBody"))}</p>
         <p class="screen-small">${escapeHtml(t("simCommunityFraudFee"))}</p>
-        <div class="screen-rule"></div>
-        <div class="screen-actions">${escapeHtml(t("simCommunityFraudConfirm"))}</div>
-        <div class="screen-source">${escapeHtml(t("simCommunityFraudSimulated"))}</div>`;
+        <div class="screen-actions">${escapeHtml(t("simCommunityFraudConfirm"))}</div>`;
     case "simToolkitCommunityFraudPin":
       return `<h2 class="screen-heading">${escapeHtml(t("simCommunityFraudPinTitle"))}</h2>
-        <p class="screen-small">${escapeHtml(t("simCommunityFraudPinNote"))}</p>
-        <div class="pin-dots" aria-label="${state.pinLength} digits entered">${"•".repeat(state.pinLength)}</div>
-        <p class="screen-small">${escapeHtml(t("simCommunityFraudPinHelp"))}</p>
-        <div class="screen-source">${escapeHtml(t("simCommunityFraudSimulated"))}</div>`;
+        <div class="pin-dots" aria-label="${state.pinLength} digits entered">${"•".repeat(state.pinLength)}</div>`;
     case "simToolkitCommunityFraudSuccess":
       return centered("✓", t("simCommunityFraudSuccessTitle"),
-        `${t("simCommunityFraudSuccessBody")} ${state.communityFraudReference}.`,
-        "End: return to idle");
+        `${t("simCommunityFraudSuccessBody")} ${state.communityFraudReference}`,
+        "");
     case "language":
-      return `<h2 class="screen-heading">Language</h2><ol class="screen-menu">
-        <li><span class="menu-number">1</span>English</li><li><span class="menu-number">2</span>Twi</li></ol>${noticeHtml()}
-        <p class="screen-small">${escapeHtml(t("twSecurityReview"))}</p>`;
+      return `<h2 class="screen-heading">${escapeHtml(t("language"))}</h2><ol class="screen-menu">
+        <li><span class="menu-number">1</span>English</li><li><span class="menu-number">2</span>Twi</li></ol>${noticeHtml()}`;
     case "sms": {
       const current = flow.messages[state.selectedMessage] || {};
       const title = state.messageTag === "transaction" ? "Payment receipt" : "Message";
       return `<h2 class="screen-heading">${escapeHtml(title)}</h2>
         <div class="sms-card"><div class="sms-sender">${escapeHtml(current.sender || "UNKNOWN")} · ${escapeHtml(current.time || "NOW")}</div>
-        <div>${escapeHtml(state.message)}</div></div>
-        <div class="screen-source">source: simulated</div>`;
+        <div>${escapeHtml(state.message)}</div></div>`;
     }
     case "pin":
-      return `<h2 class="screen-heading">DEMO PIN SCREEN</h2><p class="screen-small">Digits are not saved.</p>
-        <div class="pin-dots" aria-label="${state.pinLength} digits entered">${"•".repeat(state.pinLength)}</div>
-        <p class="screen-small">OK when finished.<br>Clear removes one dot.</p><div class="screen-source">digits are discarded</div>`;
+      return `<h2 class="screen-heading">Enter PIN</h2>
+        <div class="pin-dots" aria-label="${state.pinLength} digits entered">${"•".repeat(state.pinLength)}</div>`;
     case "demoComplete":
-      return centered("✓", "Demo complete", "PIN digits discarded. Nothing was stored.", "End: return to idle");
+      return centered("✓", "Done", "", "");
     case "error":
-      return centered("!", "Please try again", state.message, "OK: go back", "warning");
+      return centered("!", "Error", state.message, "OK", "warning");
     default:
-      return centered("!", "Please try again", "This screen is not available.", "End: return to idle", "warning");
+      return centered("!", "Error", "Unavailable", "OK", "warning");
   }
 }
 
@@ -273,6 +257,11 @@ function render() {
   scrollSelectedIntoView();
   phone.classList.toggle("is-locked", flow.state.locked);
   phone.dataset.screen = flow.state.screen;
+  const labels = softKeyLabels(flow.state.screen);
+  const softLeft = document.querySelector("#soft_left_label");
+  const softRight = document.querySelector("#soft_right_label");
+  if (softLeft) softLeft.textContent = labels.left;
+  if (softRight) softRight.textContent = labels.right;
   for (const button of document.querySelectorAll(".key")) {
     const locked = flow.state.locked && button.dataset.key !== "end";
     button.setAttribute("aria-disabled", String(locked));
@@ -404,10 +393,9 @@ loadLocale("en")
 const resetButton = document.querySelector("#reset_demo");
 const resetStatus = document.querySelector("#reset_status");
 if (CONFIG.MODE === "controller") {
-  document.querySelector("#preview_status").innerHTML =
-    '<span class="status-dot"></span> Controller mode <span class="status-divider">/</span> Simulated money';
+  document.querySelector("#preview_status").textContent = "Controller mode";
   document.querySelector("#footer_note").textContent =
-    `Controller: ${CONFIG.CONTROLLER_URL} · No real money movement`;
+    `Controller: ${CONFIG.CONTROLLER_URL}`;
   document.querySelector("#controller_guide").hidden = false;
   resetButton.hidden = false;
   resetButton.addEventListener("click", async () => {
@@ -444,13 +432,13 @@ demoBridge.onMessage(event => {
   if (event.type === "incoming-sms") {
     const message = flow.receiveSimulatedSms(event);
     render();
-    showToast(`New message from ${message.sender} (simulated)`);
+    showToast(`Message: ${message.sender}`);
     demoBridge.postMessage({ type: "ack", requestId: event.requestId, status: "delivered" });
     return;
   }
   if (event.type === "incoming-call") {
     if (CONFIG.MODE !== "controller") {
-      showToast("Simulated calls need controller mode. See phone-page/config.js.");
+      showToast("Calls need controller mode.");
       demoBridge.postMessage({ type: "ack", requestId: event.requestId, status: "rejected", reason: "mock_mode" });
       return;
     }

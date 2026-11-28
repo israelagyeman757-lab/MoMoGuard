@@ -116,7 +116,7 @@ test("report, alerts, and language screens are reachable", () => {
   flow.press("5");
   flow.press("2");
   assert.equal(flow.state.language, "tw");
-  assert.match(flow.state.notice, /Twi selected/i);
+  assert.equal(flow.state.notice, "Twi");
 });
 
 // Grid is 3x3, row-major: row0=[phone,messages,contacts], row1=[calculator,

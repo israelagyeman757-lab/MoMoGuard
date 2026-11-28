@@ -243,11 +243,11 @@ export class PhoneFlow {
     } else if (screen === "language") {
       if (key === "1") {
         this.state.language = "en";
-        this.state.notice = "English is active.";
+        this.state.notice = "English";
       }
       if (key === "2") {
         this.state.language = "tw";
-        this.state.notice = "Twi selected — some security warnings still need native review.";
+        this.state.notice = "Twi";
       }
     } else if (screen === "sent") {
       if (key === "ok") {
