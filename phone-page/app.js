@@ -81,7 +81,7 @@ function screenTemplate() {
       return homeScreenTemplate();
     case "stkPopup": {
       const popup = s.stkPopup || {};
-      return `<div class="stk-popup" role="dialog"><p class="stk-hd">MoMoGuard</p><p class="screen-copy">${escapeHtml(popup.text)}</p>
+      return `<div class="stk-popup" role="dialog"><p class="stk-hd">Walo</p><p class="screen-copy">${escapeHtml(popup.text)}</p>
         ${popup.report ? '<p class="screen-small">Call: report · Right soft: OK</p>' : ""}
         ${popup.more ? '<p class="screen-small">Left soft: More</p>' : ""}</div>`;
     }
@@ -97,7 +97,7 @@ function screenTemplate() {
     case "stkCarrier":
       return `${stkTitle("SIM Toolkit")}<p class="stk-sub">MTN Ghana</p>${menuListHtml(CARRIER_MENU, 0)}`;
     case "stkMomo":
-      return `${stkTitle("MoMoGuard")}${menuListHtml(MOMO_MENU, s.stkMenuIndex)}`;
+      return `${stkTitle("Walo")}${menuListHtml(MOMO_MENU, s.stkMenuIndex)}`;
     case "stkCheckInput":
       return inputScreen("Check number", "No reports ≠ safe.");
     case "stkCheckResult": {
@@ -128,7 +128,7 @@ function screenTemplate() {
     case "stkTips":
       return `<p class="stk-hd">Tips</p><ul class="alert-list"><li>Never share PIN or OTP.</li><li>MTN will not ask for your code on a call.</li><li>No reports does not mean a number is safe.</li></ul>`;
     case "stkHelp":
-      return `<p class="stk-hd">Help</p><p class="screen-copy">SIM Toolkit · MoMoGuard only. Data may be simulated in preview.</p>`;
+      return `<p class="stk-hd">Help</p><p class="screen-copy">SIM Toolkit · Walo only. Data may be simulated in preview.</p>`;
     case "loading":
       return `<div class="screen-center"><span class="loading-spinner" aria-hidden="true"></span><p class="stk-hd">Please wait…</p></div>`;
     case "error":
