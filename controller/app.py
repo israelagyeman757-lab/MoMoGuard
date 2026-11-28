@@ -18,7 +18,7 @@ from controller.ussd import CommunityUssdRouter
 
 
 def create_app(store=None, *, seed: bool = True) -> FastAPI:
-    app = FastAPI(title="Walo Community", version="1.0.0")
+    app = FastAPI(title="Walɔ Community", version="1.0.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -258,7 +258,7 @@ def create_app(store=None, *, seed: bool = True) -> FastAPI:
     async def stk_enqueue(body: dict):
         message = {
             "id": uuid.uuid4().hex[:12],
-            "text": body.get("text", "Walo alert"),
+            "text": body.get("text", "Walɔ alert"),
             "more": bool(body.get("more")),
             "report": bool(body.get("report")),
         }

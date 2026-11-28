@@ -15,7 +15,7 @@
 
 body {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Georgia, "Times New Roman", "Noto Serif", "DejaVu Serif", serif;
   font-size: 1.05rem;
   line-height: 1.5;
   color: var(--ink);
