@@ -197,7 +197,7 @@ function screenTemplate() {
       return `<h2 class="screen-heading">${escapeHtml(t("simToolkitTitle"))}</h2><ol class="screen-menu">
         <li><span class="menu-number">1</span>${escapeHtml(t("simLearnTitle"))}</li>
         <li><span class="menu-number">2</span>${escapeHtml(t("simLookupTitle"))}</li>
-        <li><span class="menu-number">3</span>${escapeHtml(t("simReportTitle"))}</li></ol>`;
+        <li><span class="menu-number">3</span>${escapeHtml(t("simCommunityFraudMenu"))}</li></ol>`;
     case "simToolkitLearn":
       return centered("i", t("simLearnTitle"), t("simLearnBody"), "Back: SIM Toolkit menu");
     case "simToolkitLookup":
@@ -216,24 +216,23 @@ function screenTemplate() {
         <p class="screen-copy">${escapeHtml(state.reverseLookupMessage)}</p><div class="screen-rule"></div>
         <p class="screen-small">Back: SIM Toolkit menu</p><div class="screen-source">${escapeHtml(t("simLookupNotProof"))}</div>`;
     }
-    case "simToolkitReport":
-      return entryScreen(t("simReportTitle"), t("simReportNumber"), t("simReportNumberNote"));
-    case "simToolkitReportType":
-      return `<h2 class="screen-heading">${escapeHtml(t("simReportTypeTitle"))}</h2><ol class="screen-menu">
-        <li><span class="menu-number">1</span>${escapeHtml(t("simReportType1"))}</li>
-        <li><span class="menu-number">2</span>${escapeHtml(t("simReportType2"))}</li>
-        <li><span class="menu-number">3</span>${escapeHtml(t("simReportType3"))}</li>
-        <li><span class="menu-number">4</span>${escapeHtml(t("simReportType4"))}</li>
-        <li><span class="menu-number">5</span>${escapeHtml(t("simReportType5"))}</li></ol>`;
-    case "simToolkitReportIdentity":
-      return entryScreen(t("simReportIdentityTitle"), t("simReportIdentityLabel"),
-        t("simReportIdentityNote"));
-    case "simToolkitReportLost":
-      return `<h2 class="screen-heading">${escapeHtml(t("simReportLostTitle"))}</h2><ol class="screen-menu">
-        <li><span class="menu-number">1</span>${escapeHtml(t("simReportLostYes"))}</li>
-        <li><span class="menu-number">2</span>${escapeHtml(t("simReportLostNo"))}</li></ol>`;
-    case "simToolkitReportSent":
-      return centered("✓", "Report sent", state.reportSuspiciousMessage || "Thank you. This number has been noted as suspected.", "End: return to idle");
+    case "simToolkitCommunityFraud":
+      return `<h2 class="screen-heading">${escapeHtml(t("simCommunityFraudTitle"))}</h2>
+        <p class="screen-copy">${escapeHtml(t("simCommunityFraudBody"))}</p>
+        <p class="screen-small">${escapeHtml(t("simCommunityFraudFee"))}</p>
+        <div class="screen-rule"></div>
+        <div class="screen-actions">${escapeHtml(t("simCommunityFraudConfirm"))}</div>
+        <div class="screen-source">${escapeHtml(t("simCommunityFraudSimulated"))}</div>`;
+    case "simToolkitCommunityFraudPin":
+      return `<h2 class="screen-heading">${escapeHtml(t("simCommunityFraudPinTitle"))}</h2>
+        <p class="screen-small">${escapeHtml(t("simCommunityFraudPinNote"))}</p>
+        <div class="pin-dots" aria-label="${state.pinLength} digits entered">${"•".repeat(state.pinLength)}</div>
+        <p class="screen-small">${escapeHtml(t("simCommunityFraudPinHelp"))}</p>
+        <div class="screen-source">${escapeHtml(t("simCommunityFraudSimulated"))}</div>`;
+    case "simToolkitCommunityFraudSuccess":
+      return centered("✓", t("simCommunityFraudSuccessTitle"),
+        `${t("simCommunityFraudSuccessBody")} ${state.communityFraudReference}.`,
+        "End: return to idle");
     case "language":
       return `<h2 class="screen-heading">Language</h2><ol class="screen-menu">
         <li><span class="menu-number">1</span>English</li><li><span class="menu-number">2</span>Twi</li></ol>${noticeHtml()}
@@ -305,23 +304,10 @@ async function finishReverseLookup() {
   }
 }
 
-async function finishReportSuspiciousNumber() {
-  if (CONFIG.MODE === "controller") {
-    const payload = flow.buildSuspiciousReportPayload(flow.sender);
-    const result = await controller.reportSuspiciousNumber(payload);
-    if (flow.state.screen !== "loading") return;
-    if (result.ok) flow.applyReportSuspiciousResult(result.data);
-    else flow.applyReportSuspiciousError();
-  } else {
-    flow.finishReportSuspiciousNumber();
-  }
-}
-
 function scheduleCurrentScreen() {
   if (flow.state.screen === "loading") {
     queueAdvance(async () => {
       if (flow.state.loadingKind === "reverseLookup") await finishReverseLookup();
-      else if (flow.state.loadingKind === "reportSuspicious") await finishReportSuspiciousNumber();
       else flow.finishPayment();
     }, CONFIG.SIMULATED_DELAY_MS);
   } else if (flow.state.screen === "paused") {

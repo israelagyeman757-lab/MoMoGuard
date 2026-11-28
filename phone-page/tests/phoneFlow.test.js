@@ -177,24 +177,38 @@ test("a Reverse Number Lookup backend failure shows a clearly-labelled error, no
   assert.match(flow.state.reverseLookupMessage, /not proof/i);
 });
 
-test("SIM Toolkit Report collects number, request type, optional identity, and lost-money", () => {
+test("SIM Toolkit Community Fraud: No closes the toolkit and returns to idle", () => {
   const flow = new PhoneFlow();
   openSimToolkit(flow);
   flow.press("3");
-  assert.equal(flow.state.screen, "simToolkitReport");
-  enter(flow, "0240000005");
-  assert.equal(flow.state.screen, "simToolkitReportType");
-  flow.press("3");
-  assert.equal(flow.state.screen, "simToolkitReportIdentity");
-  flow.press("ok");
-  assert.equal(flow.state.screen, "simToolkitReportLost");
+  assert.equal(flow.state.screen, "simToolkitCommunityFraud");
   flow.press("2");
-  assert.equal(flow.state.screen, "loading");
-  assert.equal(flow.state.reportSuspiciousTrick, "possible_fake_reversal");
-  assert.equal(flow.state.reportSuspiciousLostMoney, false);
-  flow.finishReportSuspiciousNumber();
-  assert.equal(flow.state.screen, "simToolkitReportSent");
-  assert.match(flow.state.reportSuspiciousMessage, /noted as suspected/i);
+  assert.equal(flow.state.screen, "idle");
+});
+
+test("SIM Toolkit Community Fraud: Yes shows simulated PIN then success with reference", () => {
+  const flow = new PhoneFlow();
+  openSimToolkit(flow);
+  flow.press("3");
+  flow.press("1");
+  assert.equal(flow.state.screen, "simToolkitCommunityFraudPin");
+  for (const key of ["1", "2", "3", "4"]) flow.press(key);
+  assert.equal(flow.state.pinLength, 4);
+  flow.press("ok");
+  assert.equal(flow.state.screen, "simToolkitCommunityFraudSuccess");
+  assert.match(flow.state.communityFraudReference, /^CFG-SIM-/);
+  assert.equal(flow.state.pinLength, 0);
+});
+
+test("Community Fraud PIN digits are masked and never stored in state", () => {
+  const flow = new PhoneFlow();
+  openSimToolkit(flow);
+  flow.press("3");
+  flow.press("1");
+  for (const key of ["9", "8", "7", "6"]) flow.press(key);
+  assert.equal(flow.state.pinLength, 4);
+  assert.equal(flow.state.entry, "");
+  assert.equal(JSON.stringify(flow.state).includes("9876"), false);
 });
 
 test("OK opens two apps and navigation changes the selected app", () => {

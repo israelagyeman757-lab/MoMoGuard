@@ -156,36 +156,19 @@ Handle invalid numbers, unavailable results, API failures, and timeouts appropri
 
 Do not expose Rancard API credentials on the client side.
 
-Option 3: Report a Suspicious Number
+Option 3: Community Fraud
 
-Customers should be able to report suspicious numbers independently.
+Customers can access community fraud services without sending MoMo to anyone.
 
-This is important because community representatives may not always be available.
+Expected flow (feature-phone SIM Toolkit):
 
-The customer reporting experience should collect the essential information needed by the community intelligence system.
+1. Explanation screen: **GH₵5** community fraud service fee (simulated in the preview).
+2. Confirm: **1 Yes**, **2 No**.
+3. **No** — close the SIM Toolkit and return to idle.
+4. **Yes** — simulated MoMo PIN entry (masked dots only; digits are never stored, logged, or sent).
+5. Success screen with a simulated reference. The preview labels the debit as simulated; it does not call the bank plug.
 
-The reporting flow should be simpler than the representative's reporting interface.
-
-Where possible, collect:
-
-- Suspicious phone number.
-- Nature of the suspected scam.
-- Claimed identity of the person contacting the customer.
-- Type of request made (PIN, verification code, money transfer, reversal, fees, etc.).
-- Whether the customer actually lost money.
-
-Do not make optional information unnecessarily mandatory.
-
-Reports should feed into the same central community intelligence system used by representatives.
-
-The system must distinguish between:
-
-- Unverified reports.
-- Corroborated reports.
-- High-confidence warnings.
-- Disputed reports.
-
-A single report must not automatically result in a publicly confirmed scam classification.
+Number reporting stays on the Innovate Reps console, not on this SIM Toolkit menu.
 
 ---
 
@@ -207,7 +190,7 @@ Required changes
    
    - Learn About Emerging Scams
    - Reverse Number Lookup
-   - Report a Suspicious Number
+   - Community Fraud
 
 The simulator should demonstrate how a feature-phone customer would access MoMoGuard.
 
@@ -448,7 +431,7 @@ Avoid unnecessary dashboards, complicated menus, and excessive information.
 | Customer SIM Toolkit | Add |
 | SIM Toolkit scam education | Add placeholder only |
 | SIM Toolkit reverse lookup | Add |
-| SIM Toolkit scam reporting | Add |
+| SIM Toolkit Community Fraud (simulated fee) | Add |
 | Feature-phone 3×3 grid | Modify |
 | Gemini SMS Agent | Remove |
 | Gemini SMS design document | Remove |
@@ -486,7 +469,7 @@ Phase 3: Customer SIM Toolkit
 - Implement the three-option menu.
 - Build the training placeholder.
 - Connect reverse lookup to the shared backend.
-- Implement independent scam reporting.
+- Implement Community Fraud (simulated service fee + PIN screen).
 
 Phase 4: Feature Phone Simulator
 
@@ -529,8 +512,8 @@ Customer workflow
 5. Select Reverse Number Lookup.
 6. Enter a phone number and retrieve results.
 7. Return to the menu.
-8. Select Report a Suspicious Number.
-9. Submit a report.
+8. Select Community Fraud.
+9. Confirm or cancel; if confirmed, complete the simulated PIN screen and note the reference.
 
 Supporting workflow
 
@@ -699,9 +682,9 @@ Checks the state of a paused payment. If sender/recipient/amount changed, the pa
 - Goes to the local report list now; Glance submission is a stub until access arrives.
 - `trick` is either one of the original scam-name values (from the USSD "Report a Scam" flow's
   3-option picker) or the fixed string `"community_reported"` (from the Innovate Reps console's
-  report form, or the SIM Toolkit's simpler "Report a Suspicious Number" option, neither of which
-  has that picker). `description`/`community`/`incident_time` are optional free-text extras those
-  two newer flows collect; the original USSD flow never sends them.
+  report form; the SIM Toolkit no longer posts reports from option 3). `description`/`community`/
+  `incident_time` are optional free-text extras the Innovate Reps flow may collect; the original
+  USSD flow never sends them.
 
 ## GET /rancard/reverse-lookup?number=0240000009
 

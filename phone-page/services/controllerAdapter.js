@@ -58,13 +58,6 @@ export function reverseLookup(number) {
   return request(`/rancard/reverse-lookup?number=${encodeURIComponent(number)}`);
 }
 
-/** SIM Toolkit: Report a Suspicious Number (simpler flow than the Innovate
- * Reps form -- just the number). Reuses the same /report endpoint and
- * GlancePlug-backed storage, not a separate reporting system. */
-export function reportSuspiciousNumber(payload) {
-  return post("/report", payload);
-}
-
 export function communityIntelligence(number) {
   return request(`/community/intelligence?number=${encodeURIComponent(number)}`);
 }
