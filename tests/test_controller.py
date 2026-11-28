@@ -126,15 +126,6 @@ def test_check_otp_is_stub_only(client):
     assert r["checker_status"] == "not_checked"
 
 
-def test_check_sms_warns_via_api(client):
-    r = client.post("/check-sms", json={
-        "sender": STRANGER, "recipient": AUNTY,
-        "text": "I have sent you GH₵300. Please return GH₵200 immediately.",
-        "ts": "2026-11-27T10:00:00"}).json()
-    assert r["recommended_action"] == "warn"
-    assert r["checker_status"] == "complete"
-
-
 def test_metrics_and_audit_shape(client):
     assess(client, AUNTY, SUPPLIER, 50)
     assess(client, AUNTY, STRANGER, 300)

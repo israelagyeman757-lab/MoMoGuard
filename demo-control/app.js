@@ -179,4 +179,4 @@ bridgeStatus.textContent = bridge.available
   : "This browser does not support live phone updates (BroadcastChannel unavailable). Open the phone preview and try a modern browser.";
 bridgeStatus.classList.toggle("is-unavailable", !bridge.available);
 
-log("Demo control ready. All actions use the controller's real /check-sms, /ussd and /assess endpoints \u2014 nothing here is scored locally.", "info");
+log("Demo control ready. SMS is inbox-only; simulated calls use the controller's real /ussd and /assess endpoints.", "info");

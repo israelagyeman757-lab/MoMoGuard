@@ -209,7 +209,7 @@ test("OK opens two apps and navigation changes the selected app", () => {
   assert.equal(flow.state.selectedApp, "phone");
 });
 
-test("Phone opens USSD and Messages opens an inbox before the warning", () => {
+test("Phone opens USSD and Messages opens an inbox and thread view", () => {
   const flow = new PhoneFlow();
   flow.press("ok");
   flow.press("ok");
@@ -222,7 +222,7 @@ test("Phone opens USSD and Messages opens an inbox before the warning", () => {
   assert.equal(flow.state.screen, "messages");
   flow.press("ok");
   assert.equal(flow.state.screen, "sms");
-  assert.match(flow.state.messageWarning, /may be/i);
+  assert.match(flow.state.message, /GH₵300/);
   flow.press("back");
   assert.equal(flow.state.screen, "messages");
 });
@@ -304,15 +304,14 @@ test("inbox lists several messages and navigation selects without opening", () =
   assert.equal(flow.state.screen, "messages");
 });
 
-test("selected suspicious message shows a possible fake tag and warning", () => {
+test("selected message opens thread text without fraud labels", () => {
   const flow = new PhoneFlow();
   flow.press("ok");
   flow.press("right");
   flow.press("ok");
   flow.press("ok");
   assert.equal(flow.state.screen, "sms");
-  assert.equal(flow.state.messageTag, "possible_fake");
-  assert.match(flow.state.messageWarning, /may be/i);
+  assert.equal(flow.state.messageTag, "");
   assert.match(flow.state.message, /GH₵300/);
 });
 

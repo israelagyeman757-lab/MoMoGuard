@@ -52,9 +52,8 @@ export function report(number, trick, reporterId) {
 }
 
 /** SIM Toolkit: Reverse Number Lookup. Calls the Rancard Glance stub
- * service directly (not through /ussd) -- same pattern as checkSms(), since
- * the SIM Toolkit is a standalone app in the grid, not nested in the dial
- * code flow. See controller/plugs/rancard_glance_plug.py. */
+ * service directly (not through /ussd), since the SIM Toolkit is a standalone
+ * app in the grid. See controller/plugs/rancard_glance_plug.py. */
 export function reverseLookup(number) {
   return request(`/rancard/reverse-lookup?number=${encodeURIComponent(number)}`);
 }
@@ -68,10 +67,6 @@ export function reportSuspiciousNumber(payload) {
 
 export function communityIntelligence(number) {
   return request(`/community/intelligence?number=${encodeURIComponent(number)}`);
-}
-
-export function checkSms(payload) {
-  return post("/check-sms", payload);
 }
 
 export function resetDemo() {

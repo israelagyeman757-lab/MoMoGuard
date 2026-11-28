@@ -23,7 +23,7 @@ test("a simulated SMS lands in the inbox like a real text, tagged simulated", ()
   assert.match(message.text, /cash grant/);
 });
 
-test("a simulated SMS without an explicit senderNumber still gets one, so the live check-sms call fires", () => {
+test("a simulated SMS without an explicit senderNumber falls back to sender", () => {
   const flow = new PhoneFlow({ mode: "controller" });
   const message = flow.receiveSimulatedSms({ sender: "0599990000", text: "send your OTP now" });
   assert.equal(message.senderNumber, "0599990000");

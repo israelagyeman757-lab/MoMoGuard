@@ -119,17 +119,6 @@ test("reportSuspiciousNumber posts the SIM Toolkit payload object", async t => {
   t.after(restore);
 });
 
-test("check-sms posts the message and returns the warn-only result", async t => {
-  useControllerMode();
-  const calls = stubFetch(() => jsonResponse({ recommended_action: "warn", warning: "This may be a fake deposit." }));
-  const result = await adapter.checkSms({ sender: "0240000005", recipient: "0240000001", text: "Return GH₵200 now.", ts: "2026-11-25T10:00:00" });
-  assert.equal(result.ok, true);
-  assert.equal(result.data.recommended_action, "warn");
-  assert.equal(calls[0].url, "http://127.0.0.1:8000/check-sms");
-  assert.equal(JSON.parse(calls[0].options.body).sender, "0240000005");
-  t.after(restore);
-});
-
 test("report, resume, assess, confirm, voice-result and reset-demo send contract bodies", async t => {
   useControllerMode();
   const calls = stubFetch(() => jsonResponse({ status: "ok" }));

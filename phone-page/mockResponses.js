@@ -63,8 +63,7 @@ export const INITIAL_MESSAGES = [
     time: "NOW",
     preview: "I sent you GH₵300. Return GH₵200 now.",
     text: "I sent you GH₵300. Return GH₵200 now.",
-    warning: "This may be a fake deposit. Check your balance first. A warning, not proof.",
-    tag: "possible_fake",
+    tag: "",
     source: "simulated",
   },
   {

@@ -34,3 +34,10 @@ export function submitReport(payload) {
 export function reverseLookup(number) {
   return request(`/rancard/reverse-lookup?number=${encodeURIComponent(number)}`);
 }
+
+export function ussd(sessionId, key, sender) {
+  return request("/ussd", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId, key, sender }),
+  });
+}

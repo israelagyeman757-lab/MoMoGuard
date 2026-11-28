@@ -64,11 +64,6 @@ def main() -> int:
     check("rancard reverse-lookup flags known demo number (stub)", r["status"] == "flagged"
           and r["source"] == "rancard_stub")
 
-    r = c.post("/check-sms", json={"sender": "0240000005", "recipient": AUNTY,
-                                   "text": "I have sent you GH₵300. Please return GH₵200 immediately.",
-                                   "ts": "2026-11-27T10:00:00"}).json()
-    check("check-sms warns on scam text", r["recommended_action"] == "warn")
-
     r = c.post("/check-otp", json={"number": MUM}).json()
     check("check-otp is stub", r["status"] == "not_implemented")
 

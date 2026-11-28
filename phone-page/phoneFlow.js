@@ -36,7 +36,6 @@ export class PhoneFlow {
       screen: "idle",
       selectedApp: "phone",
       selectedMessage: 0,
-      messageWarning: "",
       messageTag: "",
       history: [],
       entry: "",
@@ -203,7 +202,6 @@ export class PhoneFlow {
       if (key === "ok") {
         const message = this.messages[this.state.selectedMessage];
         this.state.message = message.text;
-        this.state.messageWarning = message.warning || "";
         this.state.messageTag = message.tag || "";
         this._go("sms");
       }
@@ -322,8 +320,7 @@ export class PhoneFlow {
   // --- SIM Toolkit: Reverse Number Lookup + Report a Suspicious Number ---
   // Default (mock-mode) behavior lives here, pure and synchronous, so it's
   // testable without a controller. app.js overrides this with a real
-  // controller-backed call when CONFIG.MODE === "controller", the same
-  // pattern used for the Messages app's live /check-sms call.
+  // controller-backed call when CONFIG.MODE === "controller".
 
   finishReverseLookup() {
     if (this.state.screen !== "loading" || !this.state.reverseLookupNumber) return;
@@ -387,9 +384,6 @@ export class PhoneFlow {
 
   /** A simulated SMS just "arrived". Always accepted, like a real text. */
   receiveSimulatedSms({ sender = "UNKNOWN NUMBER", senderNumber = "", text = "", trust = "unknown" } = {}) {
-    // senderNumber is what gets sent to the real /check-sms call; a demo
-    // payload normally only supplies `sender` (a number or label), so fall
-    // back to it rather than silently skipping the live check.
     const message = {
       id: `demo-sms-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       sender,
