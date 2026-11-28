@@ -30,5 +30,7 @@ export function buildReportPayload({ number, time, community, description } = {}
     description: (description || "").trim(),
     community: (community || "").trim(),
     incident_time: (time || "").trim(),
+    channel: "innovate_reps",
+    request_type: "other",
   };
 }

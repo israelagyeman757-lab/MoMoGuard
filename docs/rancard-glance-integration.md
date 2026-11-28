@@ -1,36 +1,61 @@
-# Rancard Glance integration — live API blockers
+# Rancard Glance integration
 
-MoMoGuard centralizes reverse-number lookup in `controller/plugs/rancard_glance_plug.py`
-and exposes `GET /rancard/reverse-lookup?number=`. Innovate Reps and the customer SIM
-Toolkit both call that endpoint only (no duplicate client logic).
+Central module: `controller/plugs/rancard_glance_plug.py`
 
-## Current behaviour (stub)
+| Capability | Default (CI/demo) | Live switch |
+|---|---|---|
+| **Reverse lookup** (`GET /rancard/reverse-lookup`) | Stub canned data (`source: rancard_stub`) | `RANCARD_GLANCE_MODE=live` + `RANCARD_GLANCE_LOOKUP_PATH` from Rancard |
+| **Sandbox reporting** (forwards from `POST /report`) | Stub (`glance_submission.submitted: false`) | `RANCARD_GLANCE_REPORT_MODE=live` |
 
-- Default `RANCARD_GLANCE_MODE=stub` (or unset): canned demo numbers, `source: "rancard_stub"`.
-- `RANCARD_GLANCE_MODE=live` **without** both `RANCARD_GLANCE_BASE_URL` and
-  `RANCARD_GLANCE_LOOKUP_PATH` set from official Rancard documentation: **no HTTP
-  guesswork** — response is the same stub shape with `live_attempted: false` and a
-  `live_note` explaining what is missing.
-- When base URL **and** lookup path are configured, the plug attempts one authenticated
-  request using `RANCARD_GLANCE_API_KEY` (local `.env` only, never committed). On any
-  failure it falls back to the stub and sets `source: "rancard_stub"`.
+## Confirmed: sandbox reporting API (Israel, 2026-11-28)
 
-## What Israel needs from Rancard (before flipping to a real integration)
+- **Base URL:** `https://glance-api.rancardmobility.com`
+- **Path:** `POST /api/v1/developer/sandbox/flagged-msisdns/reports`
+- **Headers:** `X-API-Key` (from untracked `.env`: `GLANCE_DEV_KEY` or `RANCARD_GLANCE_API_KEY`), `Idempotency-Key` (UUID), `Content-Type: application/json`
+- **Body (sandbox):** `msisdn` (`SYN-0000`…`SYN-9999` fictional), `reason`, `simulatedSourceId`, `severity` (`LOW`/`MEDIUM`/`HIGH`)
+- **Success:** HTTP `201`, `{"code":"00","success":true,...}`
+- **Rate limit:** 60 requests / key / minute (handle HTTP `429`)
 
-1. **Sandbox/production base URL** (no trailing slash).
-2. **Exact lookup path and HTTP method** (e.g. whether number is query param or JSON body).
-3. **Authentication scheme** (header name and format for the `gldev_*` key).
-4. **Request/response JSON schema** for a reverse lookup (field names for threat status,
-   risk level, history, errors, empty results).
-5. **Timeout/retry guidance** and rate limits.
-6. **Error codes** that mean “no record” vs “service down” vs “invalid number”.
+### `reason` values confirmed via sandbox (not guessed)
 
-Public marketing pages at rancard.com confirm Glance exists but do **not** publish the wire
-contract. This repo intentionally does not invent paths or response fields.
+Empirically accepted by the API with `simulatedSourceId: SIM-A`:
 
-Configure in untracked `.env` (see `.env.example`):
+1. `PHISHING`
+2. `IMPERSONATION`
+3. `ACCOUNT_TAKEOVER`
 
-- `RANCARD_GLANCE_API_KEY`
-- `RANCARD_GLANCE_BASE_URL`
-- `RANCARD_GLANCE_LOOKUP_PATH` (from Rancard only)
-- `RANCARD_GLANCE_MODE=live` (optional; stub fallback remains until the above are confirmed)
+A **fourth** enum value is referenced in Rancard materials but was **not** discoverable without developer-console docs (authenticated `GET /api/v1/developer/docs` returned `401` for this key). MoMoGuard maps internal trick/request fields only onto the three confirmed values.
+
+### Real phone → sandbox MSISDN
+
+MoMoGuard maps any reported number to **`SYN-####`** using the **last four digits** of the normalized MSISDN (e.g. `0240000009` → `SYN-0009`). This is **sandbox fiction only**, not a production identifier. Free-text description is kept locally in `GlancePlug`; the Glance API accepts no description field.
+
+### Idempotency
+
+`Idempotency-Key` = UUID v5 of `reporter_id|number|report_day`, matching the local “one report per reporter per number per day” rule so retries replay without duplicate sandbox submissions.
+
+### Source mapping
+
+- Innovate Reps: `channel: innovate_reps` → `simulatedSourceId` from `RANCARD_GLANCE_SIM_SOURCE_REP` (default `SIM-A`)
+- SIM Toolkit: `channel: customer_sim_toolkit` → `RANCARD_GLANCE_SIM_SOURCE_CUSTOMER` (default `SIM-A`)
+
+## Reverse lookup: still stub
+
+Israel’s reporting contract is confirmed; **lookup is not**. Probed `GET` paths under `/api/v1/developer/sandbox/` (including `flagged-msisdns/{SYN}`, `lookup`, `reverse-lookup`) returned **`401 Unauthorized`** with the developer sandbox key—no documented read endpoint for this credential.
+
+Until Rancard publishes a lookup path + response schema:
+
+- Keep `GET /rancard/reverse-lookup` on stub data (`source: rancard_stub`).
+- Do **not** set `RANCARD_GLANCE_LOOKUP_PATH` unless Rancard confirms it.
+
+## Environment (`.env` only — never commit)
+
+```bash
+GLANCE_DEV_KEY=...              # or RANCARD_GLANCE_API_KEY
+RANCARD_GLANCE_BASE_URL=https://glance-api.rancardmobility.com
+RANCARD_GLANCE_REPORT_MODE=live # default stub in CI
+RANCARD_GLANCE_MODE=stub        # lookup; stay stub until lookup path exists
+RANCARD_GLANCE_TIMEOUT_S=8
+```
+
+Optional: `RANCARD_GLANCE_SIM_SOURCE_ID`, `RANCARD_GLANCE_SIM_SOURCE_REP`, `RANCARD_GLANCE_SIM_SOURCE_CUSTOMER`.

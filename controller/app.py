@@ -234,6 +234,16 @@ def create_app(pause_timeout_s: float = 180.0) -> FastAPI:
             lost_money=lost_money, channel=channel,
         )
         metrics.record("report", number=number, trick=trick, accepted=result["accepted"])
+        if result.get("accepted"):
+            result["glance_submission"] = rancard.submit_sandbox_report(
+                number=number,
+                reporter_id=reporter_id,
+                report_day=result.get("report_day", ""),
+                trick=trick,
+                request_type=request_type,
+                lost_money=lost_money,
+                channel=channel,
+            )
         return result
 
     async def do_community_intelligence(number: str) -> dict:

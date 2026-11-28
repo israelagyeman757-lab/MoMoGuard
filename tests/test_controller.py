@@ -194,6 +194,17 @@ def test_report_accepts_optional_community_fields_for_innovate_reps(client):
     assert again["accepted"] is False
 
 
+def test_report_includes_glance_submission_stub_by_default(client):
+    r = client.post("/report", json={
+        "number": STRANGER, "trick": "community_reported", "reporter_id": "c99",
+        "channel": "customer_sim_toolkit", "request_type": "reversal",
+    }).json()
+    assert r["accepted"] is True
+    sub = r["glance_submission"]
+    assert sub["submitted"] is False
+    assert sub["source"] == "rancard_report_stub"
+
+
 def test_community_intelligence_endpoint(client):
     client.post("/report", json={
         "number": "0240000888", "trick": "community_reported", "reporter_id": "c1",

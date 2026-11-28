@@ -87,6 +87,7 @@ class GlancePlug:
         return {"accepted": True,
                 "message": "Thank you. This number has been noted as suspected.",
                 "number": number,
+                "report_day": day,
                 "report_state": summary["report_state"],
                 "classification_note": summary["message"]}
 
