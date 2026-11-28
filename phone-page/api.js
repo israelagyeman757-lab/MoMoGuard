@@ -76,3 +76,11 @@ export function enqueueStkPush(body) {
 export function resetDemo() {
   return post("/reset-demo", {});
 }
+
+export function evaluateHold(body) {
+  return post("/holds/evaluate", body);
+}
+
+export function withdrawCheck(phone) {
+  return request(`/holds/withdraw-check/${encodeURIComponent(phone)}`);
+}

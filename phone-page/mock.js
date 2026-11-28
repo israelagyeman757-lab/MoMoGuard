@@ -98,6 +98,65 @@ const WARNINGS = [
 const PUSH_TEXT = "High-risk reversal scam active in your area. Do not send money to unknown callers.";
 
 let attemptSequence = 0;
+const mockHolds = new Map();
+
+function mockHoldEvaluate(body) {
+  const payer = body.payer || "";
+  const payee = body.payee || "";
+  const amount = Number(body.amount || 0);
+  const paymentsBefore = body.payments_from_payer_before;
+  const newPair =
+    paymentsBefore === 0 || paymentsBefore === "0" || payee === "0245000111";
+  const flagged = payee === "0244123456";
+  let minutes = 0;
+  let risk = "LOW";
+  const reasons = [];
+  if (flagged) {
+    minutes = 1440;
+    risk = "HIGH";
+    reasons.push("flagged_high");
+  } else if (newPair) {
+    minutes = amount > 500 ? 120 : 30;
+    risk = "MEDIUM";
+    reasons.push("new_number_pair");
+    if (amount > 500) reasons.push("amount_above_500_ghs");
+  }
+  const hold = minutes > 0;
+  const releaseAt = hold
+    ? new Date(Date.now() + minutes * 60_000).toISOString().slice(0, 19)
+    : null;
+  if (hold) {
+    mockHolds.set(payee || "0244111222", {
+      release_at: releaseAt,
+      reasons,
+      amount,
+    });
+  }
+  return {
+    ok: true,
+    data: {
+      hold,
+      minutes,
+      risk_level: risk,
+      reasons,
+      hold_id: hold ? 1 : null,
+    },
+  };
+}
+
+function mockWithdrawCheck(phone) {
+  const row = mockHolds.get(phone);
+  if (!row) return { ok: true, data: { allow: true } };
+  return {
+    ok: true,
+    data: {
+      allow: false,
+      release_at: row.release_at,
+      reason: row.reasons.join("; ") || "funds_held",
+      amount: row.amount,
+    },
+  };
+}
 
 function validNumber(number) {
   return /^0\d{9}$/.test(number || "");
@@ -250,7 +309,16 @@ export function stkPushPayload() {
 }
 
 export function resetDemo() {
+  mockHolds.clear();
   return { ok: true, data: { status: "ok", message: "Demo reset to starting state." } };
+}
+
+export function evaluateHold(body) {
+  return Promise.resolve(mockHoldEvaluate(body));
+}
+
+export function withdrawCheck(phone) {
+  return Promise.resolve(mockWithdrawCheck(phone));
 }
 
 export const QUIZ_CORRECT = QUESTIONS.map(question => question.correct_answer);

@@ -34,7 +34,11 @@ export function softKeysFor(state) {
     case "stkError": return { left: "soft.ok", right: "soft.back" };
     case "stkCheckInput":
     case "stkReportNumber":
-    case "stkReportDesc": return { left: null, right: "soft.back" };
+    case "stkReportDesc":
+    case "stkSendAmount": return { left: null, right: "soft.back" };
+    case "stkSendPick": return { left: "soft.select", right: "soft.back" };
+    case "stkSendDone":
+    case "stkWithdrawResult": return { left: "soft.ok", right: "soft.back" };
     case "stkLoading": return { left: null, right: null };
     case "stkPopup": return { left: state.popup?.more ? "soft.more" : null, right: "soft.ok" };
     default: return { left: null, right: "soft.back" };

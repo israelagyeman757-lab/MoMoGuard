@@ -233,6 +233,62 @@ async function loadWarnings() {
   renderWarnings(data.warnings || []);
 }
 
+function renderHolds(holds) {
+  const body = document.getElementById("holds_body");
+  const empty = document.getElementById("holds_empty");
+  if (!holds.length) {
+    body.innerHTML = "";
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  body.innerHTML = holds.map(h => `
+    <tr data-id="${h.id}">
+      <td>#${h.id}</td>
+      <td>${h.payer_masked || "—"}</td>
+      <td>${h.payee_masked || "—"}</td>
+      <td>GHS ${Number(h.amount).toFixed(2)}</td>
+      <td>${h.risk_level}</td>
+      <td>${h.release_at ? String(h.release_at).slice(0, 16).replace("T", " ") : "—"}</td>
+      <td>
+        <div class="row-actions">
+          <button type="button" class="btn ghost hold-release" data-id="${h.id}">Release</button>
+          <button type="button" class="btn ghost hold-extend" data-id="${h.id}">Extend</button>
+          <button type="button" class="btn ghost hold-reverse" data-id="${h.id}">Reverse</button>
+        </div>
+      </td>
+    </tr>`).join("");
+
+  async function act(id, path, body = {}) {
+    try {
+      await api(path, { method: "POST", body: JSON.stringify(body) });
+      showToast(`Hold #${id} updated`);
+      await loadHolds();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+  body.querySelectorAll(".hold-release").forEach(btn => {
+    btn.addEventListener("click", () => act(btn.dataset.id, `/holds/${btn.dataset.id}/release`));
+  });
+  body.querySelectorAll(".hold-extend").forEach(btn => {
+    btn.addEventListener("click", () => act(btn.dataset.id, `/holds/${btn.dataset.id}/extend`, { extra_minutes: 60 }));
+  });
+  body.querySelectorAll(".hold-reverse").forEach(btn => {
+    btn.addEventListener("click", () => act(btn.dataset.id, `/holds/${btn.dataset.id}/reverse`));
+  });
+}
+
+async function loadHolds() {
+  setLoading("holds_loading", true);
+  try {
+    const data = await api("/holds?status=held");
+    renderHolds(data.holds || []);
+  } finally {
+    setLoading("holds_loading", false);
+  }
+}
+
 async function ensureDemoLogin(silent = false) {
   try {
     const data = await api("/auth/demo-login", {
@@ -261,6 +317,7 @@ document.getElementById("login_mod").addEventListener("click", () => {
       loadOverview();
       loadReports();
       loadWarnings();
+      loadHolds();
     }
   });
 });
@@ -268,6 +325,7 @@ document.getElementById("login_mod").addEventListener("click", () => {
 document.getElementById("load_overview").addEventListener("click", () => loadOverview().catch(e => showToast(e.message, "error")));
 document.getElementById("load_reports").addEventListener("click", () => loadReports().catch(e => showToast(e.message, "error")));
 document.getElementById("load_warnings").addEventListener("click", () => loadWarnings().catch(e => showToast(e.message, "error")));
+document.getElementById("load_holds").addEventListener("click", () => loadHolds().catch(e => showToast(e.message, "error")));
 
 document.getElementById("lookup_btn").addEventListener("click", async () => {
   const n = document.getElementById("lookup_number").value.trim();
@@ -331,5 +389,6 @@ ensureDemoLogin(true).then(ok => {
     loadOverview();
     loadReports();
     loadWarnings();
+    loadHolds();
   }
 });

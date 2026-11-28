@@ -1,7 +1,7 @@
 import { CONFIG } from "./config.js";
 import { initI18n, t, getLocale, setLocale } from "./i18n/i18n.js";
 import { PhoneFlow } from "./phoneFlow.js";
-import { APPS, STK_MENU, REPORT_TYPES, CONTACTS, CALL_LOG, TIPS } from "./menuData.js";
+import { APPS, STK_MENU, REPORT_TYPES, CONTACTS, CALL_LOG, TIPS, SEND_DEMO_PAYERS } from "./menuData.js";
 import { hardwareIdFor, KEYMAP, isTypingTarget } from "./keyboardMap.js";
 import * as api from "./api.js";
 import * as mock from "./mock.js";
@@ -244,6 +244,31 @@ function bodyMarkup() {
         <div class="hint">${esc(t("results.detail", { type: latest.assessment_type, count: latest.total_questions }))}</div>
         ${latest.completed_at ? `<div class="hint">${esc(String(latest.completed_at).slice(0, 10))}</div>` : ""}`;
     }
+    case "stkSendPick":
+      return `${header("header.sendMoney")}
+        <div class="hint">${esc(t("send.pickHint"))}</div>
+        ${listBox("header.sendMoney", SEND_DEMO_PAYERS.map((item, index) => rowMarkup({
+          name: t(item.labelKey),
+          selected: index === s.sendDemo.pickIndex,
+          option: true,
+        })).join(""))}`;
+    case "stkSendAmount":
+      return `${header("header.sendMoney")}${entryBlock({ hint: t("send.amountHint"), notice: s.notice })}`;
+    case "stkSendDone": {
+      const res = s.sendDemo.result || {};
+      return `${header("header.sendMoney")}
+        <div class="copy">${esc(t("send.done", { amount: s.sendDemo.amount || "100", minutes: res.minutes || 0 }))}</div>`;
+    }
+    case "stkWithdrawResult": {
+      const w = s.withdrawResult || {};
+      if (w.allow) {
+        return `${header("header.withdraw")}<div class="copy">${esc(t("withdraw.clear"))}</div>`;
+      }
+      const time = flow.formatReleaseShort(w.release_at);
+      return `${header("header.withdraw")}
+        <div class="copy">${esc(t("withdraw.blocked", { time }))}</div>
+        <div class="hint">${esc(t("withdraw.reason", { reason: w.reason || "" }))}</div>`;
+    }
     case "stkCheckInput":
       return `${header("header.check")}${entryBlock({ hint: t("check.hint"), notice: s.notice })}`;
     case "stkCheckResult": {
@@ -430,6 +455,8 @@ function callFor(pending) {
     case "warnings": return data.getWarnings();
     case "check": return data.checkNumber(pending.number);
     case "report": return data.submitReport(pending.body);
+    case "sendHold": return data.evaluateHold(pending.body);
+    case "withdraw": return data.withdrawCheck(pending.phone);
     default: return Promise.resolve({ ok: false, error: "unknown" });
   }
 }
@@ -626,4 +653,5 @@ window.__phone = {
   get flow() { return flow; },
   get config() { return CONFIG; },
   dispatch,
+  render,
 };
