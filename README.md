@@ -31,7 +31,49 @@ and open:
 
 ```bash
 python -m pytest tests/ -v
+cd phone-page && npm test
+cd innovate-reps && npm test
+cd demo-control && npm test
 ```
+
+## Deploy on Vercel (single project)
+
+This repo ships as **one Vercel project**: static UIs plus the FastAPI controller as a Python serverless function.
+
+1. Import the GitHub repo in Vercel (root directory = repo root; `vercel.json` is already configured).
+2. **Community reports on Vercel need Supabase.** Vercel’s filesystem is ephemeral; without Supabase the controller falls back to **in-memory SQLite**, which resets on cold starts and does **not** persist reports between invocations. Apply `supabase/migrations/20261128100000_init.sql` on your project, then set the Supabase variables below in the Vercel dashboard.
+3. After deploy, open:
+   - `/phone-page/` — customer SIM Toolkit preview
+   - `/innovate-reps/` — Innovate Reps console
+   - `/demo-control/` — operator demo console
+   - `/api/docs` — interactive OpenAPI (controller under `/api/*`)
+
+**Local vs production API base:** static pages call `http://127.0.0.1:8000` when served from `localhost` / `127.0.0.1` (or via `file:`); on Vercel they use same-origin **`/api`** (see `shared/controllerUrl.js`).
+
+### Vercel environment variables (names only — never commit values)
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | Hosted Postgres (community reports) — **required on Vercel for durable storage** |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side PostgREST access (service role only) |
+| `SUPABASE_HTTP_TIMEOUT_S` | Optional HTTP timeout for Supabase calls (default `10`) |
+| `COMMUNITY_SQLITE_PATH` | Optional local/ephemeral SQLite path (not for production on Vercel) |
+| `PAUSE_TIMEOUT_S` | Payment pause window in seconds (default `180`) |
+| `BANK_PLUG_MODE` | `simulated` (default) or `mtn_sandbox` |
+| `MTN_SANDBOX_BASE_URL` | Hackathon sandbox API base |
+| `MTN_MOMO_CLIENT_ID` | MoMo sandbox client id |
+| `MTN_MOMO_API_KEY` | MoMo sandbox API key |
+| `GLANCE_DEV_KEY` | Legacy Glance dev key name (optional) |
+| `RANCARD_GLANCE_API_KEY` | Rancard Glance API key |
+| `RANCARD_GLANCE_BASE_URL` | Glance API base URL |
+| `RANCARD_GLANCE_TIMEOUT_S` | Glance HTTP timeout |
+| `RANCARD_GLANCE_MODE` | `stub` or `live` (reverse lookup) |
+| `RANCARD_GLANCE_REPORT_MODE` | `stub` or `live` (report forwarding) |
+| `RANCARD_GLANCE_SIM_SOURCE_ID` | Sandbox simulated source id (optional) |
+| `RANCARD_GLANCE_SIM_SOURCE_REP` | Sandbox rep source id (optional) |
+| `RANCARD_GLANCE_SIM_SOURCE_CUSTOMER` | Sandbox customer source id (optional) |
+| `SANDBOX_BASE_URL` | General sandbox base (if used) |
+| `SANDBOX_API_KEY` | General sandbox key (if used) |
 
 ## Use the real MTN MoMo sandbox instead of the pretend bank
 
